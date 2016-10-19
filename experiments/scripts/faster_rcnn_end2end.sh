@@ -43,12 +43,11 @@ case $DATASET in
     exit
     ;;
 esac
-
 LOG="experiments/logs/faster_rcnn_end2end_${NET}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
 
-time python ./tools/train_net.py --gpu ${GPU_ID} \
+time python ./faster_rcnn/train_net.py --gpu ${GPU_ID} \
   --weights data/pretrain_model/VGG_imagenet.npy \
   --imdb ${TRAIN_IMDB} \
   --iters ${ITERS} \
@@ -60,7 +59,7 @@ set +x
 NET_FINAL=`grep -B 1 "done solving" ${LOG} | grep "Wrote snapshot" | awk '{print $4}'`
 set -x
 
-time python ./tools/test_net.py --gpu ${GPU_ID} \
+time python ./faster_rcnn/test_net.py --gpu ${GPU_ID} \
   --weights ${NET_FINAL} \
   --imdb ${TEST_IMDB} \
   --cfg experiments/cfgs/faster_rcnn_end2end.yml \

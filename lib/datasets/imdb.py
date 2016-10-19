@@ -18,6 +18,8 @@ from ..utils.cython_bbox import bbox_overlaps
 from ..fast_rcnn.config import cfg
 # <<<< obsolete
 
+ROOT_DIR = osp.join(osp.dirname(__file__), '..', '..')
+MATLAB = 'matlab_r2013b'
 
 class imdb(object):
     """Image database."""

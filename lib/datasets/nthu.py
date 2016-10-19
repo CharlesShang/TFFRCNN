@@ -7,16 +7,12 @@ import cPickle
 import math
 import glob
 
-import imdb
-from . import ROOT_DIR
-
-from ..utils.cython_bbox import bbox_overlaps
-from ..utils.boxes_grid import get_boxes_grid
+from .imdb import imdb
+from .imdb import ROOT_DIR
 
 # TODO: make fast_rcnn irrelevant
 # >>>> obsolete, because it depends on sth outside of this project
 from ..fast_rcnn.config import cfg
-from ..rpn_msr.generate_anchors import generate_anchors
 # <<<< obsolete
 
 class nthu(imdb):

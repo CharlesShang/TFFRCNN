@@ -1,7 +1,6 @@
 import imagenet3d
 import os
 import PIL
-import imdb
 import numpy as np
 import scipy.sparse
 import subprocess
@@ -9,7 +8,8 @@ import cPickle
 import math
 import sys
 
-from . import ROOT_DIR
+from .imdb import imdb
+from .imdb import ROOT_DIR
 from ..utils.cython_bbox import bbox_overlaps
 from ..utils.boxes_grid import get_boxes_grid
 

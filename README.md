@@ -51,6 +51,6 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
 
 2. [VGG16 - FasterRCN](https://drive.google.com/open?id=0ByuDEGFYmWsbZ0EzeUlHcGFIVWM).
 
-### Training on Pascal VOC 2012
+### Training on Pascal VOC 2007
 
 TODO

@@ -9,13 +9,14 @@
 
 __sets = {}
 
-import pascal_voc
-import imagenet3d
-import kitti
-import kitti_tracking
 import numpy as np
-import nthu
-import coco
+
+from .pascal_voc import pascal_voc
+from .imagenet3d import imagenet3d
+from .kitti import kitti
+from .kitti_tracking import kitti_tracking
+from .nthu import nthu
+from .coco import coco
 
 def _selective_search_IJCV_top_k(split, year, top_k):
     """Return an imdb that uses the top k proposals from the selective search

@@ -7,8 +7,8 @@ import cPickle
 import math
 import glob
 
-import imdb
-from . import ROOT_DIR
+from .imdb import imdb
+from .imdb import ROOT_DIR
 
 from ..utils.cython_bbox import bbox_overlaps
 from ..utils.boxes_grid import get_boxes_grid
