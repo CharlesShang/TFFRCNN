@@ -1,0 +1,6 @@
+.idea
+*.so
+*.o
+*.pyc
+*.npy
+*.ckpt
