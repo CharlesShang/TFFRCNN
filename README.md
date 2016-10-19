@@ -45,13 +45,11 @@ python ./faster_rcnn/demo.py --model model_path
 ```
 The demo performs detection using a VGG16 network trained for detection on PASCAL VOC 2007.
 
-### Download pre-trained ImageNet VGG16
+### Download list
 
-Pre-trained ImageNet models can be downloaded [here](https://drive.google.com/open?id=0ByuDEGFYmWsbNVF5eExySUtMZmM).
+1. [VGG16 trained on ImageNet](https://drive.google.com/open?id=0ByuDEGFYmWsbNVF5eExySUtMZmM)
 
-### Trained model (VGG16 - Faster-RCNN)
-
-Download model training on PASCAL VOC 2007 [here](https://drive.google.com/open?id=0ByuDEGFYmWsbZ0EzeUlHcGFIVWM).
+2. [VGG16 - FasterRCN](https://drive.google.com/open?id=0ByuDEGFYmWsbZ0EzeUlHcGFIVWM).
 
 ### Training on Pascal VOC 2012
 
