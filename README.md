@@ -85,7 +85,9 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
     ln -s $VOCdevkit VOCdevkit2007
     ```
 
-5. Run training scripts 
+5. Download pre-trained model [VGG16](https://drive.google.com/open?id=0ByuDEGFYmWsbNVF5eExySUtMZmM) and put it in the path `./data/pretrain_model/VGG_imagenet.npy`
+
+6. Run training scripts 
 
     ```Shell
     cd $TFFRCNN
