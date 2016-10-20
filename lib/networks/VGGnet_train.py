@@ -53,18 +53,17 @@ class VGGnet_train(Network):
 
         #========= RoI Proposal ============
         (self.feed('rpn_cls_score')
-             .reshape_layer(2,name = 'rpn_cls_score_reshape')
+             .reshape_layer(2, name = 'rpn_cls_score_reshape')
              .softmax(name='rpn_cls_prob'))
 
         (self.feed('rpn_cls_prob')
-             .reshape_layer(len(anchor_scales)*3*2,name = 'rpn_cls_prob_reshape'))
+             .reshape_layer(len(anchor_scales)*3*2, name = 'rpn_cls_prob_reshape'))
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
              .proposal_layer(_feat_stride, anchor_scales, 'TRAIN',name = 'rpn_rois'))
 
         (self.feed('rpn_rois','gt_boxes')
              .proposal_target_layer(n_classes,name = 'roi-data'))
-
 
         #========= RCNN ============        
         (self.feed('conv5_3', 'roi-data')
