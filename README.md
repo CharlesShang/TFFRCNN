@@ -1,6 +1,7 @@
 # TFFRCNN
 
-This is an experimental Tensorflow implementation of Faster RCNN - a convnet for object detection with a region proposal network (RPN).
+This is an experimental Tensorflow implementation of Faster RCNN, mainly based on the work of [smallcorgi](https://github.com/smallcorgi/Faster-RCNN_TF) and [rbgirshick](https://github.com/rbgirshick/py-faster-rcnn). I have re-organized the libraries under `lib` path, making each of python modules independent to each other, so you can understand, re-write the code easily.
+
 For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](http://arxiv.org/pdf/1506.01497v3.pdf) by Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun.
 
 ### Acknowledgments: 
@@ -9,7 +10,7 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 
 2. [Faster-RCNN_TF](https://github.com/smallcorgi/Faster-RCNN_TF)
 
-3. [tensorflow-fast-rcnn](https://github.com/zplizzi/tensorflow-fast-rcnn)
+3. [ROI pooling](https://github.com/zplizzi/tensorflow-fast-rcnn)
 
 ### Requirements: software
 
