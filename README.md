@@ -30,7 +30,7 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 
 2. Build the Cython modules
     ```Shell
-    cd ./lib
+    cd TFFRCNN/lib
     make # compile cython and roi_pooling_op, you may need to modify make.sh for your platform
     ```
 
@@ -40,7 +40,7 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 
 To run the demo
 ```Shell
-cd $FRCN_ROOT
+cd $TFFRCNN
 python ./faster_rcnn/demo.py --model model_path
 ```
 The demo performs detection using a VGG16 network trained for detection on PASCAL VOC 2007.
@@ -53,4 +53,41 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
 
 ### Training on Pascal VOC 2007
 
-TODO
+1. Download the training, validation, test data and VOCdevkit
+
+    ```Shell
+    wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtrainval_06-Nov-2007.tar
+    wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar
+    wget http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCdevkit_08-Jun-2007.tar
+    ```
+
+2. Extract all of these tars into one directory named `VOCdevkit`
+
+    ```Shell
+    tar xvf VOCtrainval_06-Nov-2007.tar
+    tar xvf VOCtest_06-Nov-2007.tar
+    tar xvf VOCdevkit_08-Jun-2007.tar
+    ```
+
+3. It should have this basic structure
+
+    ```Shell
+    $VOCdevkit/                           # development kit
+    $VOCdevkit/VOCcode/                   # VOC utility code
+    $VOCdevkit/VOC2007                    # image sets, annotations, etc.
+    # ... and several other directories ...
+    ```
+
+4. Create symlinks for the PASCAL VOC dataset
+
+    ```Shell
+    cd $TFFRCNN/data
+    ln -s $VOCdevkit VOCdevkit2007
+    ```
+
+5. Run training scripts 
+
+    ```Shell
+    cd $TFFRCNN
+    python ./faster_rcnn/train_net.py --gpu 0 --weights ./data/pretrain_model/VGG_imagenet.npy --imdb voc_2007_trainval --iters 70000 --cfg  ./experiments/cfgs/faster_rcnn_end2end.yml --network VGGnet_train --set EXP_DIR exp_dir
+    ```
