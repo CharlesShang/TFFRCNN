@@ -29,11 +29,11 @@ __C = edict()
 cfg = __C
 
 # region proposal network (RPN) or not
-__C.IS_RPN = True;
+__C.IS_RPN = True
 
 # multiscale training and testing
-__C.IS_MULTISCALE = True;
-__C.IS_EXTRAPOLATING = True;
+__C.IS_MULTISCALE = False
+__C.IS_EXTRAPOLATING = True
 
 #
 __C.REGION_PROPOSAL = 'RPN'
@@ -56,7 +56,7 @@ __C.TRAIN.STEPSIZE = 30000
 # Scales to compute real features
 __C.TRAIN.SCALES_BASE = (0.25, 0.5, 1.0, 2.0, 3.0)
 
-# The number of scales per octave in the image pyramid 
+# The number of scales per octave in the image pyramid
 # An octave is the set of scales up to half of the initial scale
 __C.TRAIN.NUM_PER_OCTAVE = 4
 
@@ -157,7 +157,7 @@ __C.TEST = edict()
 #__C.TEST.SCALES_BASE = (0.25, 0.5, 1.0, 2.0, 3.0)
 __C.TEST.SCALES_BASE = (1.0,)
 
-# The number of scales per octave in the image pyramid 
+# The number of scales per octave in the image pyramid
 # An octave is the set of scales up to half of the initial scale
 __C.TEST.NUM_PER_OCTAVE = 4
 
@@ -352,3 +352,25 @@ def cfg_from_file(filename):
     _merge_a_into_b(yaml_cfg, __C)
     _add_more_info(1)
     _add_more_info(0)
+
+def cfg_from_list(cfg_list):
+    """Set config keys via list (e.g., from command line)."""
+    from ast import literal_eval
+    assert len(cfg_list) % 2 == 0
+    for k, v in zip(cfg_list[0::2], cfg_list[1::2]):
+        key_list = k.split('.')
+        d = __C
+        for subkey in key_list[:-1]:
+            assert d.has_key(subkey)
+            d = d[subkey]
+        subkey = key_list[-1]
+        assert d.has_key(subkey)
+        try:
+            value = literal_eval(v)
+        except:
+            # handle the case when v is a string literal
+            value = v
+        assert type(value) == type(d[subkey]), \
+            'type {} does not match original type {}'.format(
+            type(value), type(d[subkey]))
+        d[subkey] = value

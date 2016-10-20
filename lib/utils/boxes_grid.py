@@ -15,24 +15,27 @@ from ..fast_rcnn.config import cfg
 def get_boxes_grid(image_height, image_width):
     """
     Return the boxes on image grid.
+    calling this function when cfg.IS_MULTISCALE is True, otherwise, calling rdl_roidb.prepare_roidb(imdb) instead.
     """
 
-    # height and width of the heatmap
+    # fixed a bug, change cfg.TRAIN.SCALES to cfg.TRAIN.SCALES_BASE
+    # coz, here needs a ratio around 1.0, not the accutual size.
+    # height and width of the feature map
     if cfg.NET_NAME == 'CaffeNet':
-        height = np.floor((image_height * max(cfg.TRAIN.SCALES) - 1) / 4.0 + 1)
+        height = np.floor((image_height * max(cfg.TRAIN.SCALES_BASE) - 1) / 4.0 + 1)
         height = np.floor((height - 1) / 2.0 + 1 + 0.5)
         height = np.floor((height - 1) / 2.0 + 1 + 0.5)
 
-        width = np.floor((image_width * max(cfg.TRAIN.SCALES) - 1) / 4.0 + 1)
+        width = np.floor((image_width * max(cfg.TRAIN.SCALES_BASE) - 1) / 4.0 + 1)
         width = np.floor((width - 1) / 2.0 + 1 + 0.5)
         width = np.floor((width - 1) / 2.0 + 1 + 0.5)
     elif cfg.NET_NAME == 'VGGnet':
-        height = np.floor(image_height * max(cfg.TRAIN.SCALES) / 2.0 + 0.5)
+        height = np.floor(image_height * max(cfg.TRAIN.SCALES_BASE) / 2.0 + 0.5)
         height = np.floor(height / 2.0 + 0.5)
         height = np.floor(height / 2.0 + 0.5)
         height = np.floor(height / 2.0 + 0.5)
 
-        width = np.floor(image_width * max(cfg.TRAIN.SCALES) / 2.0 + 0.5)
+        width = np.floor(image_width * max(cfg.TRAIN.SCALES_BASE) / 2.0 + 0.5)
         width = np.floor(width / 2.0 + 0.5)
         width = np.floor(width / 2.0 + 0.5)
         width = np.floor(width / 2.0 + 0.5)

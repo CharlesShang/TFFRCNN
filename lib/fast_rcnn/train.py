@@ -178,6 +178,9 @@ def get_training_roidb(imdb):
     print 'Preparing training data...'
     if cfg.TRAIN.HAS_RPN:
         if cfg.IS_MULTISCALE:
+            # TODO: fix multiscale training (single scale is already a good trade-off)
+            print ('#### warning: multi-scale has not been tested.')
+            print ('#### warning: using single scale by setting IS_MULTISCALE: False.')
             gdl_roidb.prepare_roidb(imdb)
         else:
             rdl_roidb.prepare_roidb(imdb)

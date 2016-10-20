@@ -17,8 +17,8 @@ import os.path
 
 this_dir = os.path.dirname(__file__)
 sys.path.insert(0, this_dir + '/..')
-for p in sys.path: print p
-print (this_dir)
+# for p in sys.path: print p
+# print (this_dir)
 
 from lib.fast_rcnn.train import get_training_roidb, train_net
 from lib.fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir

@@ -1,6 +1,8 @@
 EXP_DIR: faster_rcnn_end2end
-IS_MULTISCALE: True
+IS_MULTISCALE: False
+NET_NAME: VGGnet
 TRAIN:
+  HAS_RPN: True
   LEARNING_RATE: 0.001
   MOMENTUM: 0.9
   GAMMA: 0.1

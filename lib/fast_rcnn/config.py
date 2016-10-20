@@ -31,6 +31,18 @@ cfg = __C
 # Training options
 #
 
+# region proposal network (RPN) or not
+__C.IS_RPN = True
+
+# multiscale training and testing
+__C.IS_MULTISCALE = False
+__C.IS_EXTRAPOLATING = True
+
+__C.REGION_PROPOSAL = 'RPN'
+
+__C.NET_NAME = 'VGGnet'
+__C.SUBCLS_NAME = 'voxel_exemplars'
+
 __C.TRAIN = edict()
 #__C.NET_NAME = 'VGGnet'
 # learning rate
@@ -39,19 +51,18 @@ __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.GAMMA = 0.1
 __C.TRAIN.STEPSIZE = 50000
 __C.TRAIN.DISPLAY = 10
-__C.IS_MULTISCALE = False
 
 # Scales to compute real features
-#__C.TRAIN.SCALES_BASE = (0.25, 0.5, 1.0, 2.0, 3.0)
-#__C.TRAIN.SCALES_BASE = (1.0,)
+__C.TRAIN.SCALES_BASE = (0.25, 0.5, 1.0, 2.0, 3.0)
+# __C.TRAIN.SCALES_BASE = (1.0,)
 
 # parameters for ROI generating
 #__C.TRAIN.SPATIAL_SCALE = 0.0625
-#__C.TRAIN.KERNEL_SIZE = 5
+__C.TRAIN.KERNEL_SIZE = 5
 
 # Aspect ratio to use during training
-#__C.TRAIN.ASPECTS = (1, 0.75, 0.5, 0.25)
-#__C.TRAIN.ASPECTS= (1,)
+# __C.TRAIN.ASPECTS = (1, 0.75, 0.5, 0.25)
+__C.TRAIN.ASPECTS= (1,)
 
 
 # Scales to use during training (can list multiple scales)
@@ -230,7 +241,6 @@ __C.USE_GPU_NMS = True
 
 # Default GPU device id
 __C.GPU_ID = 0
-
 
 def get_output_dir(imdb, weights_filename):
     """Return the directory where experimental artifacts are placed.
