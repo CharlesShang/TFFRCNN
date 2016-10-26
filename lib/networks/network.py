@@ -158,7 +158,8 @@ class Network(object):
             input[0] = input[0][0]
         return tf.reshape(tf.py_func(proposal_layer_py,\
                                      [input[0],input[1],input[2], cfg_key, _feat_stride, anchor_scales],\
-                                     [tf.float32]),[-1,5],name =name)
+                                     [tf.float32]),
+                          [-1,5],name =name)
 
 
     @layer
@@ -206,11 +207,21 @@ class Network(object):
     def reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)
         if name == 'rpn_cls_prob_reshape':
-             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
-                    int(d),tf.cast(tf.cast(input_shape[1],tf.float32)/tf.cast(d,tf.float32)*tf.cast(input_shape[3],tf.float32),tf.int32),input_shape[2]]),[0,2,3,1],name=name)
+             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),
+                                            [   input_shape[0],
+                                                int(d),
+                                                tf.cast(tf.cast(input_shape[1],tf.float32)/tf.cast(d,tf.float32)*tf.cast(input_shape[3],tf.float32),tf.int32),
+                                                input_shape[2]
+                                            ]),
+                                 [0,2,3,1],name=name)
         else:
-             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),[input_shape[0],
-                    int(d),tf.cast(tf.cast(input_shape[1],tf.float32)*(tf.cast(input_shape[3],tf.float32)/tf.cast(d,tf.float32)),tf.int32),input_shape[2]]),[0,2,3,1],name=name)
+             return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),
+                                        [   input_shape[0],
+                                            int(d),
+                                            tf.cast(tf.cast(input_shape[1],tf.float32)*(tf.cast(input_shape[3],tf.float32)/tf.cast(d,tf.float32)),tf.int32),
+                                            input_shape[2]
+                                        ]),
+                                 [0,2,3,1],name=name)
 
     # @layer
     # def feature_extrapolating(self, input, scales_base, num_scale_base, num_per_octave, name):

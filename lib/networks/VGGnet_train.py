@@ -40,18 +40,19 @@ class VGGnet_train(Network):
              .conv(3, 3, 512, 1, 1, name='conv5_3'))
         #========= RPN ============
         (self.feed('conv5_3')
-             .conv(3,3,512,1,1,name='rpn_conv/3x3')
-             .conv(1,1,len(anchor_scales)*3*2 ,1 , 1, padding='VALID', relu = False, name='rpn_cls_score'))
-  
+             .conv(3,3,512,1,1,name='rpn_conv/3x3'))
+
+        # Loss of rpn_cls & rpn_boxes
+        (self.feed('rpn_conv/3x3')
+             .conv(1,1,len(anchor_scales) * 3 * 4, 1, 1, padding='VALID', relu = False, name='rpn_bbox_pred'))
+        (self.feed('rpn_conv/3x3')
+             .conv(1, 1, len(anchor_scales) * 3 * 2, 1, 1, padding='VALID', relu=False, name='rpn_cls_score'))
+
+        # generating training labels on the fly
+        # output: rpn_labels rpn_bbox_targets rpn_bbox_inside_weights rpn_bbox_outside_weights
         (self.feed('rpn_cls_score','gt_boxes','im_info','data')
              .anchor_target_layer(_feat_stride, anchor_scales, name = 'rpn-data' ))
 
-        # Loss of rpn_cls & rpn_boxes
-
-        (self.feed('rpn_conv/3x3')
-             .conv(1,1,len(anchor_scales)*3*4, 1, 1, padding='VALID', relu = False, name='rpn_bbox_pred'))
-
-        #========= RoI Proposal ============
         (self.feed('rpn_cls_score')
              .reshape_layer(2, name = 'rpn_cls_score_reshape')
              .softmax(name='rpn_cls_prob'))
@@ -59,9 +60,13 @@ class VGGnet_train(Network):
         (self.feed('rpn_cls_prob')
              .reshape_layer(len(anchor_scales)*3*2, name = 'rpn_cls_prob_reshape'))
 
+        # ========= RoI Proposal ============
+        # add the delta(output) to anchors then
+        # choose some reasonabel boxes, considering scores, ratios, size and iou
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
              .proposal_layer(_feat_stride, anchor_scales, 'TRAIN',name = 'rpn_rois'))
 
+        # matching boxes and groundtruth
         (self.feed('rpn_rois','gt_boxes')
              .proposal_target_layer(n_classes,name = 'roi-data'))
 
