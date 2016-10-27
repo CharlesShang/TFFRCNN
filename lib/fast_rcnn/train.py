@@ -149,6 +149,8 @@ class SolverWrapper(object):
 
             blobs = data_layer.forward()
 
+            if (iter + 1) % (cfg.TRAIN.DISPLAY) == 0:
+                print 'image: %s' %(blobs['im_name']),
             # Make one SGD update
             feed_dict={self.net.data: blobs['data'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
                            self.net.gt_boxes: blobs['gt_boxes']}
@@ -156,7 +158,7 @@ class SolverWrapper(object):
             rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = \
                 sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op], feed_dict=feed_dict)
 
-            timer.toc()
+            timer.toc(average=False)
 
             if (iter+1) % (cfg.TRAIN.DISPLAY) == 0:
                 print 'iter: %d / %d, image: %s, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
