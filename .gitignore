@@ -9,4 +9,5 @@ experiments/logs/*
 data/cache/*
 data/VOCdevkit2012
 data/VOCdevkit2007
+data/KITTIVOC
 output

@@ -45,18 +45,6 @@ class kitti(imdb):
             self._num_subclasses = 227 + 36 + 36 + 1
             prefix = 'test'
 
-        # load the mapping for subcalss to class
-        filename = os.path.join(self._kitti_path, cfg.SUBCLS_NAME, prefix, 'mapping.txt')
-        assert os.path.exists(filename), 'Path does not exist: {}'.format(filename)
-        
-        mapping = np.zeros(self._num_subclasses, dtype=np.int)
-        with open(filename) as f:
-            for line in f:
-                words = line.split()
-                subcls = int(words[0])
-                mapping[subcls] = self._class_to_ind[words[1]]
-        self._subclass_mapping = mapping
-
         self.config = {'top_k': 100000}
 
         # statistics for computing recall
@@ -121,7 +109,7 @@ class kitti(imdb):
         """
         Return the default path where KITTI is expected to be installed.
         """
-        return os.path.join(ROOT_DIR, 'data', 'KITTI')
+        return os.path.join(cfg.DATA_DIR, 'KITTI')
 
 
     def gt_roidb(self):
