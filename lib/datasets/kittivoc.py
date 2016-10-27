@@ -42,6 +42,7 @@ class kittivoc(imdb):
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
+        self._remove_empty_samples()
         # Default to roidb handler
         #self._roidb_handler = self.selective_search_roidb
         self._roidb_handler = self.gt_roidb
@@ -184,6 +185,24 @@ class kittivoc(imdb):
             box_list.append(boxes)
 
         return self.create_roidb_from_box_list(box_list, gt_roidb)
+
+    def _remove_empty_samples(self):
+        """
+        Remove images with zero annotation ()
+        """
+        print 'Remove empty annotations: ',
+        for i in range(len(self._image_index)-1, -1, -1):
+            index = self._image_index[i]
+            filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
+            tree = ET.parse(filename)
+            objs = tree.findall('object')
+            non_diff_objs = [
+                obj for obj in objs if int(obj.find('difficult').text) == 0]
+            num_objs = len(non_diff_objs)
+            if num_objs == 0:
+                print index,
+                self._image_index.pop(i)
+        print 'Done. '
 
     def _load_pascal_annotation(self, index):
         """

@@ -8,6 +8,19 @@
 import numpy as np
 import warnings
 
+def bbox_valid(bboxes):
+    """
+    Chech boxes is valid or not
+    :param bboxes:
+    :return:
+    """
+    widths = bboxes[:, 2] - bboxes[:, 0] + 1.0
+    heights = bboxes[:, 3] - bboxes[:, 1] + 1.0
+    if np.min(widths) > 0 and np.min(heights) > 0:
+        return True
+    else:
+        return False
+
 def bbox_transform(ex_rois, gt_rois):
     """
     computes the distance from ground-truth boxes to the given boxes, normed by their size
