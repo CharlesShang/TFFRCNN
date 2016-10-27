@@ -17,6 +17,7 @@ from .kitti import kitti
 from .kitti_tracking import kitti_tracking
 from .nthu import nthu
 from .coco import coco
+from .kittivoc import kittivoc
 
 def _selective_search_IJCV_top_k(split, year, top_k):
     """Return an imdb that uses the top k proposals from the selective search
@@ -33,31 +34,19 @@ for year in ['2007', '2012']:
         name = 'voc_{}_{}'.format(year, split)
         __sets[name] = (lambda split=split, year=year:
                 pascal_voc(split, year))
-"""
-# Set up voc_<year>_<split>_top_<k> using selective search "quality" mode
-# but only returning the first k boxes
-for top_k in np.arange(1000, 11000, 1000):
-    for year in ['2007', '2012']:
-        for split in ['train', 'val', 'trainval', 'test']:
-            name = 'voc_{}_{}_top_{:d}'.format(year, split, top_k)
-            __sets[name] = (lambda split=split, year=year, top_k=top_k:
-                    _selective_search_IJCV_top_k(split, year, top_k))
-"""
 
-# Set up voc_<year>_<split> using selective search "fast" mode
-for year in ['2007']:
-    for split in ['train', 'val', 'trainval', 'test']:
-        name = 'voc_{}_{}'.format(year, split)
+
+# Set up kittivoc
+    for split in ['train', 'val', 'trainval']:
+        name = 'kittivoc_{}'.format(split)
         print name
-        __sets[name] = (lambda split=split, year=year:
-                pascal_voc(split, year))
+        __sets[name] = (lambda split=split: kittivoc(split))
 
 # KITTI dataset
 for split in ['train', 'val', 'trainval', 'test']:
     name = 'kitti_{}'.format(split)
     print name
-    __sets[name] = (lambda split=split:
-            kitti(split))
+    __sets[name] = (lambda split=split: kitti(split))
 
 # Set up coco_2014_<split>
 for year in ['2014']:
@@ -75,13 +64,13 @@ for year in ['2015']:
 for split in ['71', '370']:
     name = 'nthu_{}'.format(split)
     print name
-    __sets[name] = (lambda split=split:
-            nthu(split))
+    __sets[name] = (lambda split=split: nthu(split))
 
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""
     if not __sets.has_key(name):
+        print (list_imdbs())
         raise KeyError('Unknown dataset: {}'.format(name))
     return __sets[name]()
 

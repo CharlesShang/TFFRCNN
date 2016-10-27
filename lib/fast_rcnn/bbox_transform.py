@@ -8,6 +8,12 @@
 import numpy as np
 
 def bbox_transform(ex_rois, gt_rois):
+    """
+    computes the distance from ground-truth boxes to the given boxes, normed by their size
+    :param ex_rois: n * 4 numpy array, given boxes
+    :param gt_rois: n * 4 numpy array, ground-truth boxes
+    :return: deltas: n * 4 numpy array, ground-truth boxes
+    """
     ex_widths = ex_rois[:, 2] - ex_rois[:, 0] + 1.0
     ex_heights = ex_rois[:, 3] - ex_rois[:, 1] + 1.0
     ex_ctr_x = ex_rois[:, 0] + 0.5 * ex_widths
