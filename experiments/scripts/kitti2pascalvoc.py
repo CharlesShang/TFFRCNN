@@ -81,10 +81,10 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
             append_xml_node_attr('truncated', parent=obj, text=str(truncted))
             append_xml_node_attr('difficult', parent=obj, text=str(int(hard)))
             bb = append_xml_node_attr('bndbox', parent=obj)
-            append_xml_node_attr('xmin', parent=bb, text=str(int(float(splitted_line[4]))))
-            append_xml_node_attr('ymin', parent=bb, text=str(int(float(splitted_line[5]))))
-            append_xml_node_attr('xmax', parent=bb, text=str(int(float(splitted_line[6]))))
-            append_xml_node_attr('ymax', parent=bb, text=str(int(float(splitted_line[7]))))
+            append_xml_node_attr('xmin', parent=bb, text=str(int(float(splitted_line[4]) + 1)))
+            append_xml_node_attr('ymin', parent=bb, text=str(int(float(splitted_line[5]) + 1)))
+            append_xml_node_attr('xmax', parent=bb, text=str(int(float(splitted_line[6]) + 1)))
+            append_xml_node_attr('ymax', parent=bb, text=str(int(float(splitted_line[7]) + 1)))
 
     return  doc
 

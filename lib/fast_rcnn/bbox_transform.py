@@ -6,6 +6,7 @@
 # --------------------------------------------------------
 
 import numpy as np
+import warnings
 
 def bbox_transform(ex_rois, gt_rois):
     """
@@ -24,6 +25,8 @@ def bbox_transform(ex_rois, gt_rois):
     gt_ctr_x = gt_rois[:, 0] + 0.5 * gt_widths
     gt_ctr_y = gt_rois[:, 1] + 0.5 * gt_heights
 
+    # warnings.catch_warnings()
+    # warnings.filterwarnings('error')
     targets_dx = (gt_ctr_x - ex_ctr_x) / ex_widths
     targets_dy = (gt_ctr_y - ex_ctr_y) / ex_heights
     targets_dw = np.log(gt_widths / ex_widths)
