@@ -168,7 +168,9 @@ def im_detect(sess, net, im, boxes=None):
     else:
         feed_dict={net.data: blobs['data'], net.rois: blobs['rois'], net.keep_prob: 1.0}
 
-    cls_score, cls_prob, bbox_pred, rois = sess.run([net.get_output('cls_score'), net.get_output('cls_prob'), net.get_output('bbox_pred'),net.get_output('rois')], feed_dict=feed_dict)
+    cls_score, cls_prob, bbox_pred, rois = \
+        sess.run([net.get_output('cls_score'), net.get_output('cls_prob'), net.get_output('bbox_pred'),net.get_output('rois')],\
+                 feed_dict=feed_dict)
     
     if cfg.TEST.HAS_RPN:
         assert len(im_scales) == 1, "Only single-image batch implemented"
@@ -198,7 +200,6 @@ def im_detect(sess, net, im, boxes=None):
         pred_boxes = pred_boxes[inv_index, :]
 
     return scores, pred_boxes
-
 
 def vis_detections(im, class_name, dets, thresh=0.8):
     """Visual debugging of detections."""

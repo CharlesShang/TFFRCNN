@@ -14,3 +14,5 @@ data/VOCdevkit2007
 data/KITTIVOC
 data/KITTI
 output
+logs
+

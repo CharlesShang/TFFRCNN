@@ -9,8 +9,9 @@
 import numpy as np
 import os
 import tensorflow as tf
-import sys
+import cv2
 
+from .nms_wrapper import nms_wrapper
 from ..roi_data_layer.layer import RoIDataLayer
 from ..utils.timer import Timer
 from ..gt_data_layer import roidb as gdl_roidb
@@ -18,6 +19,7 @@ from ..roi_data_layer import roidb as rdl_roidb
 
 # >>>> obsolete, because it depends on sth outside of this project
 from ..fast_rcnn.config import cfg
+from ..fast_rcnn.bbox_transform import clip_boxes, bbox_transform_inv
 # <<<< obsolete
 
 class SolverWrapper(object):
@@ -26,7 +28,7 @@ class SolverWrapper(object):
     use to unnormalize the learned bounding-box regression weights.
     """
 
-    def __init__(self, sess, network, imdb, roidb, output_dir, pretrained_model=None):
+    def __init__(self, sess, network, imdb, roidb, output_dir, logdir, pretrained_model=None):
         """Initialize the SolverWrapper."""
         self.net = network
         self.imdb = imdb
@@ -41,6 +43,9 @@ class SolverWrapper(object):
 
         # For checkpoint
         self.saver = tf.train.Saver(max_to_keep=100)
+        self.writer = tf.train.SummaryWriter(logdir=logdir,
+                                             graph=tf.get_default_graph(),
+                                             flush_secs=10)
 
     def snapshot(self, sess, iter):
         """Take a snapshot of the network after unnormalizing the learned
@@ -79,8 +84,19 @@ class SolverWrapper(object):
             sess.run(weights.assign(orig_0))
             sess.run(biases.assign(orig_1))
 
+    def build_image_summary(self):
+        """
+        A simple graph for write image summary
+        :return:
+        """
+        log_image_data = tf.placeholder(tf.uint8, [None, None, 3])
+        log_image_name = tf.placeholder(tf.string)
+        log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=50)
+        # log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
+        return log_image, log_image_data, log_image_name
 
-    def train_model(self, sess, max_iters):
+
+    def train_model(self, sess, max_iters, restore=False):
         """Network training loop."""
 
         data_layer = get_data_layer(self.roidb, self.imdb.num_classes)
@@ -104,7 +120,7 @@ class SolverWrapper(object):
         rpn_loss_box = tf.mul(tf.reduce_mean(tf.reduce_sum(tf.mul(rpn_bbox_outside_weights,tf.add(
                        tf.mul(tf.mul(tf.pow(tf.mul(rpn_bbox_inside_weights, tf.sub(rpn_bbox_pred, rpn_bbox_targets))*3,2),0.5),smoothL1_sign),
                        tf.mul(tf.sub(tf.abs(tf.sub(rpn_bbox_pred, rpn_bbox_targets)),0.5/9.0),tf.abs(smoothL1_sign-1)))), reduction_indices=[1,2])),10)
- 
+
         # R-CNN
         # classification loss
         cls_score = self.net.get_output('cls_score')
@@ -123,17 +139,47 @@ class SolverWrapper(object):
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
+        # scalar summary
+        tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
+        tf.scalar_summary('rpn_cls_loss', rpn_cross_entropy)
+        tf.scalar_summary('cls_loss', cross_entropy)
+        tf.scalar_summary('rgs_loss', loss_box)
+        tf.scalar_summary('loss', loss)
+        summary_op = tf.merge_all_summaries()
+
+        # image writer
+        # NOTE: this image is independent to summary_op
+        log_image, log_image_data, log_image_name =\
+            self.build_image_summary()
+
         # optimizer
-        lr = tf.Variable(cfg.TRAIN.LEARNING_RATE, trainable=False)
-        momentum = cfg.TRAIN.MOMENTUM
-        train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss)
+        if cfg.TRAIN.SOLVER == 'Adam':
+            opt = tf.train.AdamOptimizer(cfg.TRAIN.LEARNING_RATE)
+        elif cfg.TRAIN.SOLVER == 'RMS':
+            opt = tf.train.RMSPropOptimizer(cfg.TRAIN.LEARNING_RATE)
+        else:
+            lr = tf.Variable(cfg.TRAIN.LEARNING_RATE, trainable=False)
+            momentum = cfg.TRAIN.MOMENTUM
+            opt = tf.train.MomentumOptimizer(lr, momentum)
+
+        global_step = tf.Variable(0, trainable=False)
+        tvars = tf.trainable_variables()
+        grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
+        train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
 
         # iintialize variables
         sess.run(tf.initialize_all_variables())
-        if self.pretrained_model is not None:
+        if self.pretrained_model is not None and not restore:
             print ('Loading pretrained model '
                    'weights from {:s}').format(self.pretrained_model)
             self.net.load(self.pretrained_model, sess, True)
+        elif restore:
+            print 'Restoring from {}...'.format(self.output_dir),
+            ckpt = tf.train.get_checkpoint_state(self.output_dir)
+            if ckpt and ckpt.model_checkpoint_path:
+                self.saver.restore(sess, ckpt.model_checkpoint_path)
+                print 'done'
+            else: print 'failed.'
 
         last_snapshot_iter = -1
         timer = Timer()
@@ -151,20 +197,53 @@ class SolverWrapper(object):
 
             if (iter + 1) % (cfg.TRAIN.DISPLAY) == 0:
                 print 'image: %s' %(blobs['im_name']),
-            # Make one SGD update
-            feed_dict={self.net.data: blobs['data'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
-                           self.net.gt_boxes: blobs['gt_boxes']}
 
-            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = \
-                sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op], feed_dict=feed_dict)
+            feed_dict={
+                self.net.data: blobs['data'],
+                self.net.im_info: blobs['im_info'],
+                self.net.keep_prob: 0.5,
+                self.net.gt_boxes: blobs['gt_boxes']}
 
-            timer.toc(average=False)
+            res_fetches = [self.net.get_output('cls_prob'),  # FRCNN class prob
+                           self.net.get_output('bbox_pred'), # FRCNN rgs output
+                           self.net.get_output('rpn_rois')]  # RPN rgs output
 
-            if (iter+1) % (cfg.TRAIN.DISPLAY) == 0:
-                print 'iter: %d / %d, image: %s, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
-                        (iter+1, max_iters, blobs['im_name'], rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
+            fetch_list = [rpn_cross_entropy,
+                          rpn_loss_box,
+                          cross_entropy,
+                          loss_box,
+                          summary_op,
+                          train_op] + res_fetches
+
+            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+                summary_str, _, \
+                cls_prob, bbox_pred, rpn_rois = \
+                sess.run(fetches=fetch_list, feed_dict=feed_dict)
+
+            self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
+
+            _diff_time = timer.toc(average=False)
+
+            if (iter) % cfg.TRAIN.LOG_IMAGE_ITERS == 0:
+                # plus mean
+                ori_im = np.squeeze(blobs['data']) + cfg.PIXEL_MEANS
+                ori_im = ori_im.astype(dtype=np.uint8, copy=False)
+                # draw rects
+                boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, blobs['im_info'][0][2], ori_im.shape)
+                res = nms_wrapper(scores, boxes)
+                image = _draw_boxes_to_image(ori_im, res)
+                log_image_name_str = ('%06d_' % iter ) + blobs['im_name']
+                log_image_summary_op = \
+                    sess.run(log_image, \
+                             feed_dict={log_image_name: log_image_name_str,\
+                                        log_image_data: image})
+                self.writer.add_summary(log_image_summary_op, global_step=global_step.eval())
+
+            if (iter) % (cfg.TRAIN.DISPLAY) == 0:
+                print 'iter: %d / %d, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
+                        (iter+1, max_iters, rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
                          rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, lr.eval())
-                print 'speed: {:.3f}s / iter'.format(timer.average_time)
+                print 'speed: {:.3f}s / iter'.format(_diff_time)
 
             if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:
                 last_snapshot_iter = iter
@@ -210,12 +289,48 @@ def get_data_layer(roidb, num_classes):
 
     return layer
 
+def _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, im_scale, im_shape):
+    """
+    process the output tensors, to get the boxes and scores
+    """
+    if rpn_rois.shape[0] > bbox_pred.shape[0]:
+        rpn_rois = rpn_rois[:bbox_pred.shape[0], :]
+    boxes = rpn_rois[:, 1:5] / im_scale
+    scores = cls_prob
+    if cfg.TEST.BBOX_REG:
+        box_deltas = bbox_pred
+        pred_boxes = bbox_transform_inv(boxes, box_deltas)
+        pred_boxes = clip_boxes(pred_boxes, im_shape)
+    else:
+        # Simply repeat the boxes, once for each class
+        boxes = np.tile(boxes, (1, scores.shape[1]))
+    return pred_boxes, scores
 
-def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=40000):
+def _draw_boxes_to_image(im, res):
+    colors = [(86, 0, 240), (86, 67, 140), (0, 76, 255), \
+              (151, 0, 255), (86, 255, 234), (0, 117, 255),\
+              (58, 184, 14), (173, 225, 61), (121, 82, 6),\
+              (174, 29, 128), (115, 154, 81), (243, 223, 48)]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    image = np.copy(im)
+    cnt = 0
+    for r in res:
+        if r['dets'] is None: continue
+        dets = r['dets']
+        for i in range(0, dets.shape[0]):
+            (x1, y1, x2, y2, score) = dets[i, :]
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), colors[cnt], 2)
+            cnt = (cnt + 1) % len(colors)
+            text = '{:s} {:.2f}'.format(r['class'], score)
+            cv2.putText(image, text, (x1, y1), font, 0.6, (0, 0, 255), 1)
+    return image
+
+
+def train_net(network, imdb, roidb, output_dir, log_dir, pretrained_model=None, max_iters=40000, restore=False):
     """Train a Fast R-CNN network."""
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        sw = SolverWrapper(sess, network, imdb, roidb, output_dir, pretrained_model=pretrained_model)
+        sw = SolverWrapper(sess, network, imdb, roidb, output_dir, logdir= log_dir, pretrained_model=pretrained_model)
         print 'Solving...'
-        sw.train_model(sess, max_iters)
+        sw.train_model(sess, max_iters, restore=restore)
         print 'done solving'
