@@ -104,3 +104,62 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
     ./experiments/profiling/run_profiling.sh 
     # generate an image ./experiments/profiling/profile.png
     ```
+
+### Training on KITTI detection dataset
+
+1. Download the KITTI detection dataset
+
+    ```
+    http://www.cvlibs.net/datasets/kitti/eval_object.php
+    ```
+
+2. Extract all of these tar into `./TFFRCNN/data/` and the directory structure looks like this:
+    
+    ```
+    KITTI
+        |-- training
+                |-- image_2
+                    |-- [000000-007480].png
+                |-- label_2
+                    |-- [000000-007480].txt
+        |-- testing
+                |-- image_2
+                    |-- [000000-007517].png
+                |-- label_2
+                    |-- [000000-007517].txt
+    ```
+
+3. Convert KITTI into Pascal VOC format
+    
+    ```Shell
+    cd $TFFRCNN
+    ./experiments/scripts/kitti2pascalvoc.py \
+    --kitti $TFFRCNN/data/KITTI --out $TFFRCNN/data/KITTIVOC
+    ```
+
+4. The output directory looks like this:
+
+    ```
+    KITTIVOC
+        |-- Annotations
+                |-- [000000-007480].xml
+        |-- ImageSets
+                |-- Main
+                    |-- [train|val|trainval].txt
+        |-- JPEGImages
+                |-- [000000-007480].jpg
+    ```
+
+5. Training on `KITTIVOC` is just like on Pascal VOC 2007
+
+    ```Shell
+    python ./faster_rcnn/train_net.py \
+    --gpu 0 \
+    --weights ./data/pretrain_model/VGG_imagenet.npy \
+    --imdb kittivoc_train \
+    --iters 160000 \
+    --cfg ./experiments/cfgs/faster_rcnn_kitti.yml \
+    --network VGGnet_train
+    ```
+
+
