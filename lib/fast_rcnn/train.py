@@ -82,6 +82,17 @@ class SolverWrapper(object):
             sess.run(weights.assign(orig_0))
             sess.run(biases.assign(orig_1))
 
+    def build_image_summary(self):
+        """
+        A simple graph for write image summary
+        :return:
+        """
+        log_image_data = tf.placeholder(tf.uint8, [None, None, None, 3])
+        log_image_name = tf.placeholder(tf.string)
+        # log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=50)
+        log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
+        return log_image, log_image_data, log_image_name
+
 
     def train_model(self, sess, max_iters, restore=False):
         """Network training loop."""
@@ -126,6 +137,10 @@ class SolverWrapper(object):
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
+        # image writer
+        log_image, log_image_data, log_image_name =\
+            self.build_image_summary()
+        # scalar summary
         tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
         tf.scalar_summary('rpn_cls_loss', rpn_cross_entropy)
         tf.scalar_summary('cls_loss', cross_entropy)
@@ -178,18 +193,40 @@ class SolverWrapper(object):
 
             if (iter + 1) % (cfg.TRAIN.DISPLAY) == 0:
                 print 'image: %s' %(blobs['im_name']),
-            # Make one SGD update
-            feed_dict={self.net.data: blobs['data'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
-                           self.net.gt_boxes: blobs['gt_boxes']}
 
-            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, summary_str, _ = \
-                sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, summary_op, train_op], \
-                         feed_dict=feed_dict)
+            feed_dict={
+                self.net.data: blobs['data'],
+                self.net.im_info: blobs['im_info'],
+                self.net.keep_prob: 0.5,
+                self.net.gt_boxes: blobs['gt_boxes'],
+                log_image_name: blobs['im_name'],
+                log_image_data: blobs['data']}
+
+            res_fetches = [self.net.get_output('cls_score'),
+                           self.net.get_output('cls_prob'),
+                           self.net.get_output('rpn_bbox_pred'),
+                           self.net.get_output('rpn_rois')]
+
+            fetch_list = [rpn_cross_entropy,
+                          rpn_loss_box,
+                          cross_entropy,
+                          loss_box,
+                          summary_op,
+                          train_op] + res_fetches + [log_image]
+
+            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+                summary_str, _, \
+                cls_score, cls_prob, rpn_bbox_pred, rpn_rois, log_image_str = \
+                sess.run(fetches=fetch_list, feed_dict=feed_dict)
+
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
             timer.toc(average=False)
 
-            if (iter+1) % (cfg.TRAIN.DISPLAY) == 0:
+            if (iter) % cfg.TRAIN.LOG_IMAGE_ITERS == 0:
+                self.writer.add_summary(log_image_str, global_step=global_step.eval())
+
+            if (iter) % (cfg.TRAIN.DISPLAY) == 0:
                 print 'iter: %d / %d, image: %s, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
                         (iter+1, max_iters, blobs['im_name'], rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
                          rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, lr.eval())

@@ -54,6 +54,7 @@ __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.GAMMA = 0.1
 __C.TRAIN.STEPSIZE = 50000
 __C.TRAIN.DISPLAY = 10
+__C.TRAIN.LOG_IMAGE_ITERS = 100
 
 # Scales to compute real features
 __C.TRAIN.SCALES_BASE = (0.25, 0.5, 1.0, 2.0, 3.0)
