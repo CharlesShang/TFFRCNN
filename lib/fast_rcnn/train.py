@@ -222,7 +222,7 @@ class SolverWrapper(object):
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
-            timer.toc(average=False)
+            _diff_time = timer.toc(average=False)
 
             if (iter) % cfg.TRAIN.LOG_IMAGE_ITERS == 0:
                 # plus mean
@@ -243,7 +243,7 @@ class SolverWrapper(object):
                 print 'iter: %d / %d, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
                         (iter+1, max_iters, rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
                          rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, lr.eval())
-                print 'speed: {:.3f}s / iter'.format(timer.average_time)
+                print 'speed: {:.3f}s / iter'.format(_diff_time)
 
             if (iter+1) % cfg.TRAIN.SNAPSHOT_ITERS == 0:
                 last_snapshot_iter = iter
