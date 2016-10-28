@@ -9,8 +9,9 @@
 import numpy as np
 import os
 import tensorflow as tf
-import sys
+import cv2
 
+from .nms_wrapper import nms_wrapper
 from ..roi_data_layer.layer import RoIDataLayer
 from ..utils.timer import Timer
 from ..gt_data_layer import roidb as gdl_roidb
@@ -18,6 +19,7 @@ from ..roi_data_layer import roidb as rdl_roidb
 
 # >>>> obsolete, because it depends on sth outside of this project
 from ..fast_rcnn.config import cfg
+from ..fast_rcnn.bbox_transform import clip_boxes, bbox_transform_inv
 # <<<< obsolete
 
 class SolverWrapper(object):
@@ -87,10 +89,10 @@ class SolverWrapper(object):
         A simple graph for write image summary
         :return:
         """
-        log_image_data = tf.placeholder(tf.uint8, [None, None, None, 3])
+        log_image_data = tf.placeholder(tf.uint8, [None, None, 3])
         log_image_name = tf.placeholder(tf.string)
-        # log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=50)
-        log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
+        log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=50)
+        # log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
         return log_image, log_image_data, log_image_name
 
 
@@ -137,9 +139,6 @@ class SolverWrapper(object):
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
-        # image writer
-        log_image, log_image_data, log_image_name =\
-            self.build_image_summary()
         # scalar summary
         tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
         tf.scalar_summary('rpn_cls_loss', rpn_cross_entropy)
@@ -147,6 +146,11 @@ class SolverWrapper(object):
         tf.scalar_summary('rgs_loss', loss_box)
         tf.scalar_summary('loss', loss)
         summary_op = tf.merge_all_summaries()
+
+        # image writer
+        # NOTE: this image is independent to summary_op
+        log_image, log_image_data, log_image_name =\
+            self.build_image_summary()
 
         # optimizer
         if cfg.TRAIN.SOLVER == 'Adam':
@@ -198,25 +202,22 @@ class SolverWrapper(object):
                 self.net.data: blobs['data'],
                 self.net.im_info: blobs['im_info'],
                 self.net.keep_prob: 0.5,
-                self.net.gt_boxes: blobs['gt_boxes'],
-                log_image_name: blobs['im_name'],
-                log_image_data: blobs['data']}
+                self.net.gt_boxes: blobs['gt_boxes']}
 
-            res_fetches = [self.net.get_output('cls_score'),
-                           self.net.get_output('cls_prob'),
-                           self.net.get_output('rpn_bbox_pred'),
-                           self.net.get_output('rpn_rois')]
+            res_fetches = [self.net.get_output('cls_prob'),  # FRCNN class prob
+                           self.net.get_output('bbox_pred'), # FRCNN rgs output
+                           self.net.get_output('rpn_rois')]  # RPN rgs output
 
             fetch_list = [rpn_cross_entropy,
                           rpn_loss_box,
                           cross_entropy,
                           loss_box,
                           summary_op,
-                          train_op] + res_fetches + [log_image]
+                          train_op] + res_fetches
 
             rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
                 summary_str, _, \
-                cls_score, cls_prob, rpn_bbox_pred, rpn_rois, log_image_str = \
+                cls_prob, bbox_pred, rpn_rois = \
                 sess.run(fetches=fetch_list, feed_dict=feed_dict)
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
@@ -224,11 +225,23 @@ class SolverWrapper(object):
             timer.toc(average=False)
 
             if (iter) % cfg.TRAIN.LOG_IMAGE_ITERS == 0:
-                self.writer.add_summary(log_image_str, global_step=global_step.eval())
+                # plus mean
+                ori_im = np.squeeze(blobs['data']) + cfg.PIXEL_MEANS
+                ori_im = ori_im.astype(dtype=np.uint8, copy=False)
+                # draw rects
+                boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, blobs['im_info'][0][2], ori_im.shape)
+                res = nms_wrapper(scores, boxes)
+                image = _draw_boxes_to_image(ori_im, res)
+                log_image_name_str = ('%06d_' % iter ) + blobs['im_name']
+                log_image_summary_op = \
+                    sess.run(log_image, \
+                             feed_dict={log_image_name: log_image_name_str,\
+                                        log_image_data: image})
+                self.writer.add_summary(log_image_summary_op, global_step=global_step.eval())
 
             if (iter) % (cfg.TRAIN.DISPLAY) == 0:
-                print 'iter: %d / %d, image: %s, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
-                        (iter+1, max_iters, blobs['im_name'], rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
+                print 'iter: %d / %d, total loss: %.4f, rpn_loss_cls: %.4f, rpn_loss_box: %.4f, loss_cls: %.4f, loss_box: %.4f, lr: %f'%\
+                        (iter+1, max_iters, rpn_loss_cls_value + rpn_loss_box_value + loss_cls_value + loss_box_value ,\
                          rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, lr.eval())
                 print 'speed: {:.3f}s / iter'.format(timer.average_time)
 
@@ -275,6 +288,42 @@ def get_data_layer(roidb, num_classes):
         layer = RoIDataLayer(roidb, num_classes)
 
     return layer
+
+def _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, im_scale, im_shape):
+    """
+    process the output tensors, to get the boxes and scores
+    """
+    if rpn_rois.shape[0] > bbox_pred.shape[0]:
+        rpn_rois = rpn_rois[:bbox_pred.shape[0], :]
+    boxes = rpn_rois[:, 1:5] / im_scale
+    scores = cls_prob
+    if cfg.TEST.BBOX_REG:
+        box_deltas = bbox_pred
+        pred_boxes = bbox_transform_inv(boxes, box_deltas)
+        pred_boxes = clip_boxes(pred_boxes, im_shape)
+    else:
+        # Simply repeat the boxes, once for each class
+        boxes = np.tile(boxes, (1, scores.shape[1]))
+    return pred_boxes, scores
+
+def _draw_boxes_to_image(im, res):
+    colors = [(86, 0, 240), (86, 67, 140), (0, 76, 255), \
+              (151, 0, 255), (86, 255, 234), (0, 117, 255),\
+              (58, 184, 14), (173, 225, 61), (121, 82, 6),\
+              (174, 29, 128), (115, 154, 81), (243, 223, 48)]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    image = np.copy(im)
+    cnt = 0
+    for r in res:
+        if r['dets'] is None: continue
+        dets = r['dets']
+        for i in range(0, dets.shape[0]):
+            (x1, y1, x2, y2, score) = dets[i, :]
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), colors[cnt], 2)
+            cnt = (cnt + 1) % len(colors)
+            text = '{:s} {:.2f}'.format(r['class'], score)
+            cv2.putText(image, text, (x1, y1), font, 0.6, (0, 0, 255), 1)
+    return image
 
 
 def train_net(network, imdb, roidb, output_dir, log_dir, pretrained_model=None, max_iters=40000, restore=False):

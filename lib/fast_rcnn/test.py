@@ -201,7 +201,6 @@ def im_detect(sess, net, im, boxes=None):
 
     return scores, pred_boxes
 
-
 def vis_detections(im, class_name, dets, thresh=0.8):
     """Visual debugging of detections."""
     import matplotlib.pyplot as plt 
