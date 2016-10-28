@@ -80,7 +80,7 @@ class SolverWrapper(object):
             sess.run(biases.assign(orig_1))
 
 
-    def train_model(self, sess, max_iters):
+    def train_model(self, sess, max_iters, restore=False):
         """Network training loop."""
 
         data_layer = get_data_layer(self.roidb, self.imdb.num_classes)
@@ -130,10 +130,17 @@ class SolverWrapper(object):
 
         # iintialize variables
         sess.run(tf.initialize_all_variables())
-        if self.pretrained_model is not None:
+        if self.pretrained_model is not None and not restore:
             print ('Loading pretrained model '
                    'weights from {:s}').format(self.pretrained_model)
             self.net.load(self.pretrained_model, sess, True)
+        elif restore:
+            print 'Restoring from {}...'.format(self.output_dir),
+            ckpt = tf.train.get_checkpoint_state(self.output_dir)
+            if ckpt and ckpt.model_checkpoint_path:
+                self.saver.restore(sess, ckpt.model_checkpoint_path)
+                print 'done'
+            else: print 'failed.'
 
         last_snapshot_iter = -1
         timer = Timer()
@@ -211,11 +218,11 @@ def get_data_layer(roidb, num_classes):
     return layer
 
 
-def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=40000):
+def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=40000, restore=False):
     """Train a Fast R-CNN network."""
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         sw = SolverWrapper(sess, network, imdb, roidb, output_dir, pretrained_model=pretrained_model)
         print 'Solving...'
-        sw.train_model(sess, max_iters)
+        sw.train_model(sess, max_iters, restore=restore)
         print 'done solving'
