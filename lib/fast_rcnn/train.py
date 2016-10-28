@@ -320,9 +320,9 @@ def _draw_boxes_to_image(im, res):
         for i in range(0, dets.shape[0]):
             (x1, y1, x2, y2, score) = dets[i, :]
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), colors[cnt], 2)
-            cnt = (cnt + 1) % len(colors)
             text = '{:s} {:.2f}'.format(r['class'], score)
-            cv2.putText(image, text, (x1, y1), font, 0.6, (0, 0, 255), 1)
+            cv2.putText(image, text, (x1, y1), font, 0.6, colors[cnt], 1)
+            cnt = (cnt + 1) % len(colors)
     return image
 
 
