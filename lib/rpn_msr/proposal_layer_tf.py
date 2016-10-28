@@ -164,5 +164,5 @@ def _filter_irregular_boxes(boxes, min_ratio = 0.2, max_ratio = 5):
     ws = boxes[:, 2] - boxes[:, 0] + 1
     hs = boxes[:, 3] - boxes[:, 1] + 1
     rs = ws / hs
-    keep = np.where((rs >= max_ratio) & (rs >= min_ratio))[0]
+    keep = np.where((rs <= max_ratio) & (rs >= min_ratio))[0]
     return keep
