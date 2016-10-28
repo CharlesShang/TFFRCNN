@@ -48,7 +48,7 @@ class SolverWrapper(object):
         """
         net = self.net
 
-        if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred'):
+        if cfg.TRAIN.BBOX_REG and net.layers.has_key('bbox_pred') and cfg.TRAIN.BBOX_NORMALIZE_TARGETS:
             # save original values
             with tf.variable_scope('bbox_pred', reuse=True):
                 weights = tf.get_variable("weights")

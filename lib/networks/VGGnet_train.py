@@ -2,15 +2,6 @@ import tensorflow as tf
 from network import Network
 from ..fast_rcnn.config import cfg
 
-
-#define
-
-# n_classes = 21
-n_classes = cfg.NCLASSES
-_feat_stride = [16,]
-# anchor_scales = [8, 16, 32]
-anchor_scales = cfg.ANCHOR_SCALES
-
 class VGGnet_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
@@ -23,6 +14,13 @@ class VGGnet_train(Network):
         self.setup()
 
     def setup(self):
+
+        # n_classes = 21
+        n_classes = cfg.NCLASSES
+        # anchor_scales = [8, 16, 32]
+        anchor_scales = cfg.ANCHOR_SCALES
+        _feat_stride = [16, ]
+
         (self.feed('data')
              .conv(3, 3, 64, 1, 1, name='conv1_1', trainable=False)
              .conv(3, 3, 64, 1, 1, name='conv1_2', trainable=False)

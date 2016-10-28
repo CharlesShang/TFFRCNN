@@ -49,7 +49,11 @@ def prepare_roidb(imdb):
         assert all(max_classes[nonzero_inds] != 0)
 
 def add_bbox_regression_targets(roidb):
-    """Add information needed to train bounding-box regressors."""
+    """
+    Add information needed to train bounding-box regressors.
+    For each roi find the corresponding gt box, and compute the distance.
+    then normalize the distance into Gaussian by minus mean and divided by std
+    """
     assert len(roidb) > 0
     assert 'max_classes' in roidb[0], 'Did you call prepare_roidb first?'
 
@@ -87,6 +91,9 @@ def add_bbox_regression_targets(roidb):
 
         means = sums / class_counts
         stds = np.sqrt(squared_sums / class_counts - means ** 2)
+        # too small number will cause nan error
+        assert np.min(stds) < 0.01, \
+            'Boxes std is too small, std:{}'.format(stds)
 
     print 'bbox target means:'
     print means
@@ -112,7 +119,10 @@ def add_bbox_regression_targets(roidb):
     return means.ravel(), stds.ravel()
 
 def _compute_targets(rois, overlaps, labels):
-    """Compute bounding-box regression targets for an image."""
+    """
+    Compute bounding-box regression targets for an image.
+    for each roi find the corresponding gt_box, then compute the distance.
+    """
     # Indices of ground-truth ROIs
     gt_inds = np.where(overlaps == 1)[0]
     if len(gt_inds) == 0:
