@@ -295,8 +295,8 @@ def _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, im_scale, im_shape):
     """
     process the output tensors, to get the boxes and scores
     """
-    if rpn_rois.shape[0] > bbox_pred.shape[0]:
-        rpn_rois = rpn_rois[:bbox_pred.shape[0], :]
+    assert rpn_rois.shape[0] == bbox_pred.shape[0],\
+        'Out tensor shapes dont match'
     boxes = rpn_rois[:, 1:5] / im_scale
     scores = cls_prob
     if cfg.TEST.BBOX_REG:
