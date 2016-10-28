@@ -193,13 +193,14 @@ class Network(object):
                 = tf.py_func(proposal_target_layer_py,[input[0],input[1],classes],
                              [tf.float32,tf.float32,tf.float32,tf.float32,tf.float32])
 
-            rois = tf.reshape(rois,[-1,5] , name = 'rois') 
+            rois = tf.reshape(rois,[-1,5] , name = 'rois')
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets = tf.convert_to_tensor(bbox_targets, name = 'bbox_targets')
             bbox_inside_weights = tf.convert_to_tensor(bbox_inside_weights, name = 'bbox_inside_weights')
             bbox_outside_weights = tf.convert_to_tensor(bbox_outside_weights, name = 'bbox_outside_weights')
 
-           
+            self.layers['rois'] = rois
+
             return rois, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
 
 

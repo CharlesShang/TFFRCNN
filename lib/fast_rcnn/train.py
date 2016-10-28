@@ -167,13 +167,15 @@ class SolverWrapper(object):
         grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
         train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
 
-        # iintialize variables
+        # intialize variables
         sess.run(tf.initialize_all_variables())
-        if self.pretrained_model is not None and not restore:
+
+        # load vgg16
+        if self.pretrained_model is not None:
             print ('Loading pretrained model '
                    'weights from {:s}').format(self.pretrained_model)
             self.net.load(self.pretrained_model, sess, True)
-        elif restore:
+        if restore:
             print 'Restoring from {}...'.format(self.output_dir),
             ckpt = tf.train.get_checkpoint_state(self.output_dir)
             if ckpt and ckpt.model_checkpoint_path:
@@ -206,7 +208,7 @@ class SolverWrapper(object):
 
             res_fetches = [self.net.get_output('cls_prob'),  # FRCNN class prob
                            self.net.get_output('bbox_pred'), # FRCNN rgs output
-                           self.net.get_output('rpn_rois')]  # RPN rgs output
+                           self.net.get_output('rois')]  # RPN rgs output
 
             fetch_list = [rpn_cross_entropy,
                           rpn_loss_box,
@@ -217,7 +219,7 @@ class SolverWrapper(object):
 
             rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
                 summary_str, _, \
-                cls_prob, bbox_pred, rpn_rois = \
+                cls_prob, bbox_pred, rois = \
                 sess.run(fetches=fetch_list, feed_dict=feed_dict)
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
@@ -229,7 +231,7 @@ class SolverWrapper(object):
                 ori_im = np.squeeze(blobs['data']) + cfg.PIXEL_MEANS
                 ori_im = ori_im.astype(dtype=np.uint8, copy=False)
                 # draw rects
-                boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rpn_rois, blobs['im_info'][0][2], ori_im.shape)
+                boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rois, blobs['im_info'][0][2], ori_im.shape)
                 res = nms_wrapper(scores, boxes)
                 image = _draw_boxes_to_image(ori_im, res)
                 log_image_name_str = ('%06d_' % iter ) + blobs['im_name']

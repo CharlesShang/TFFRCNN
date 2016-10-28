@@ -67,7 +67,7 @@ class VGGnet_train(Network):
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
              .proposal_layer(_feat_stride, anchor_scales, 'TRAIN',name = 'rpn_rois'))
 
-        # matching boxes and groundtruth
+        # matching boxes and groundtruth, and randomly sample some rois for RCNN
         (self.feed('rpn_rois','gt_boxes')
              .proposal_target_layer(n_classes,name = 'roi-data'))
 
