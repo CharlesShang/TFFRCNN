@@ -117,6 +117,11 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     proposals = proposals[keep, :]
     scores = scores[keep]
 
+    # remove irregular boxes, too fat too tall
+    keep = _filter_irregular_boxes(proposals)
+    proposals = proposals[keep, :]
+    scores = scores[keep]
+
     # 4. sort all (proposal, score) pairs by score from highest to lowest
     # 5. take top pre_nms_topN (e.g. 6000)
     order = scores.ravel().argsort()[::-1]
@@ -152,4 +157,12 @@ def _filter_boxes(boxes, min_size):
     ws = boxes[:, 2] - boxes[:, 0] + 1
     hs = boxes[:, 3] - boxes[:, 1] + 1
     keep = np.where((ws >= min_size) & (hs >= min_size))[0]
+    return keep
+
+def _filter_irregular_boxes(boxes, min_ratio = 0.2, max_ratio = 5):
+    """Remove all boxes with any side smaller than min_size."""
+    ws = boxes[:, 2] - boxes[:, 0] + 1
+    hs = boxes[:, 3] - boxes[:, 1] + 1
+    rs = ws / hs
+    keep = np.where((rs >= max_ratio) & (rs >= min_ratio))[0]
     return keep
