@@ -13,3 +13,4 @@ data/VOCdevkit2012
 data/VOCdevkit2007
 data/KITTIVOC
 output
+logs

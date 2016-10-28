@@ -21,7 +21,7 @@ sys.path.insert(0, this_dir + '/..')
 # print (this_dir)
 
 from lib.fast_rcnn.train import get_training_roidb, train_net
-from lib.fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
+from lib.fast_rcnn.config import cfg, cfg_from_file, cfg_from_list, get_output_dir, get_log_dir
 from lib.datasets.factory import get_imdb
 from lib.networks.factory import get_network
 from lib.fast_rcnn.config import cfg
@@ -91,7 +91,9 @@ if __name__ == '__main__':
     roidb = get_training_roidb(imdb)
 
     output_dir = get_output_dir(imdb, None)
+    log_dir = get_log_dir(imdb)
     print 'Output will be saved to `{:s}`'.format(output_dir)
+    print 'Logs will be saved to `{:s}`'.format(log_dir)
 
     device_name = '/gpu:{:d}'.format(args.gpu_id)
     print device_name
@@ -99,6 +101,9 @@ if __name__ == '__main__':
     network = get_network(args.network_name)
     print 'Use network `{:s}` in training'.format(args.network_name)
 
-    train_net(network, imdb, roidb, output_dir,
+    train_net(network, imdb, roidb,
+              output_dir=output_dir,
+              log_dir=log_dir,
               pretrained_model=args.pretrained_model,
-              max_iters=args.max_iters, restore=args.restore)
+              max_iters=args.max_iters,
+              restore=args.restore)

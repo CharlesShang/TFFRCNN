@@ -26,7 +26,7 @@ class SolverWrapper(object):
     use to unnormalize the learned bounding-box regression weights.
     """
 
-    def __init__(self, sess, network, imdb, roidb, output_dir, pretrained_model=None):
+    def __init__(self, sess, network, imdb, roidb, output_dir, logdir, pretrained_model=None):
         """Initialize the SolverWrapper."""
         self.net = network
         self.imdb = imdb
@@ -41,6 +41,9 @@ class SolverWrapper(object):
 
         # For checkpoint
         self.saver = tf.train.Saver(max_to_keep=100)
+        self.writer = tf.train.SummaryWriter(logdir=logdir,
+                                             graph=tf.get_default_graph(),
+                                             flush_secs=10)
 
     def snapshot(self, sess, iter):
         """Take a snapshot of the network after unnormalizing the learned
@@ -104,7 +107,7 @@ class SolverWrapper(object):
         rpn_loss_box = tf.mul(tf.reduce_mean(tf.reduce_sum(tf.mul(rpn_bbox_outside_weights,tf.add(
                        tf.mul(tf.mul(tf.pow(tf.mul(rpn_bbox_inside_weights, tf.sub(rpn_bbox_pred, rpn_bbox_targets))*3,2),0.5),smoothL1_sign),
                        tf.mul(tf.sub(tf.abs(tf.sub(rpn_bbox_pred, rpn_bbox_targets)),0.5/9.0),tf.abs(smoothL1_sign-1)))), reduction_indices=[1,2])),10)
- 
+
         # R-CNN
         # classification loss
         cls_score = self.net.get_output('cls_score')
@@ -123,10 +126,27 @@ class SolverWrapper(object):
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
+        tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
+        tf.scalar_summary('rpn_cls_loss', rpn_cross_entropy)
+        tf.scalar_summary('cls_loss', cross_entropy)
+        tf.scalar_summary('rgs_loss', loss_box)
+        tf.scalar_summary('loss', loss)
+        summary_op = tf.merge_all_summaries()
+
         # optimizer
-        lr = tf.Variable(cfg.TRAIN.LEARNING_RATE, trainable=False)
-        momentum = cfg.TRAIN.MOMENTUM
-        train_op = tf.train.MomentumOptimizer(lr, momentum).minimize(loss)
+        if cfg.TRAIN.SOLVER == 'Adam':
+            opt = tf.train.AdamOptimizer(cfg.TRAIN.LEARNING_RATE)
+        elif cfg.TRAIN.SOLVER == 'RMS':
+            opt = tf.train.RMSPropOptimizer(cfg.TRAIN.LEARNING_RATE)
+        else:
+            lr = tf.Variable(cfg.TRAIN.LEARNING_RATE, trainable=False)
+            momentum = cfg.TRAIN.MOMENTUM
+            opt = tf.train.MomentumOptimizer(lr, momentum)
+
+        global_step = tf.Variable(0, trainable=False)
+        tvars = tf.trainable_variables()
+        grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
+        train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
 
         # iintialize variables
         sess.run(tf.initialize_all_variables())
@@ -162,8 +182,10 @@ class SolverWrapper(object):
             feed_dict={self.net.data: blobs['data'], self.net.im_info: blobs['im_info'], self.net.keep_prob: 0.5, \
                            self.net.gt_boxes: blobs['gt_boxes']}
 
-            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, _ = \
-                sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, train_op], feed_dict=feed_dict)
+            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value, summary_str, _ = \
+                sess.run([rpn_cross_entropy, rpn_loss_box, cross_entropy, loss_box, summary_op, train_op], \
+                         feed_dict=feed_dict)
+            self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
             timer.toc(average=False)
 
@@ -218,11 +240,11 @@ def get_data_layer(roidb, num_classes):
     return layer
 
 
-def train_net(network, imdb, roidb, output_dir, pretrained_model=None, max_iters=40000, restore=False):
+def train_net(network, imdb, roidb, output_dir, log_dir, pretrained_model=None, max_iters=40000, restore=False):
     """Train a Fast R-CNN network."""
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-        sw = SolverWrapper(sess, network, imdb, roidb, output_dir, pretrained_model=pretrained_model)
+        sw = SolverWrapper(sess, network, imdb, roidb, output_dir, logdir= log_dir, pretrained_model=pretrained_model)
         print 'Solving...'
         sw.train_model(sess, max_iters, restore=restore)
         print 'done solving'
