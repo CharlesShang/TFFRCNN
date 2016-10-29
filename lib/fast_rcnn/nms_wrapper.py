@@ -26,7 +26,7 @@ def nms_wrapper(scores, boxes, threshold = 0.7, class_sets = None):
     :param scores: N * (K * 4) numpy
     :param boxes: N * K numpy
     :param class_sets: e.g. CLASSES = ('__background__','person','bike','motorbike','car','bus')
-    :return: a list of dicts, the number of elements in the list is K
+    :return: a list of K-1 dicts, no background, each is {'class': classname, 'dets': None | [[x1,y1,x2,y2,score],...]}
     """
     num_class = scores.shape[1] if class_sets is None else len(class_sets)
     assert num_class * 4 == boxes.shape[1],\

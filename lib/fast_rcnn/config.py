@@ -46,9 +46,9 @@ __C.NET_NAME = 'VGGnet'
 __C.SUBCLS_NAME = 'voxel_exemplars'
 
 __C.TRAIN = edict()
-#__C.NET_NAME = 'VGGnet'
-# learning rate
+# Adam, Momentum, RMS
 __C.TRAIN.SOLVER = 'Momentum'
+# learning rate
 __C.TRAIN.LEARNING_RATE = 0.001
 __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.GAMMA = 0.1
@@ -118,12 +118,15 @@ __C.TRAIN.USE_PREFETCH = False
 # Normalize the targets (subtract empirical mean, divide by empirical stddev)
 __C.TRAIN.BBOX_NORMALIZE_TARGETS = True
 # Deprecated (inside weights)
+# used for assigning weights for each coords (x1, y1, w, h)
 __C.TRAIN.BBOX_INSIDE_WEIGHTS = (1.0, 1.0, 1.0, 1.0)
 # Normalize the targets using "precomputed" (or made up) means and stdevs
 # (BBOX_NORMALIZE_TARGETS must also be True)
 __C.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED = True
 __C.TRAIN.BBOX_NORMALIZE_MEANS = (0.0, 0.0, 0.0, 0.0)
-__C.TRAIN.BBOX_NORMALIZE_STDS = (0.1, 0.1, 0.2, 0.2)
+# __C.TRAIN.BBOX_NORMALIZE_STDS = (0.1, 0.1, 0.2, 0.2)
+# faster rcnn dont use pre-generated rois by selective search
+__C.TRAIN.BBOX_NORMALIZE_STDS = (1, 1, 1, 1)
 
 # Train using these proposals
 __C.TRAIN.PROPOSAL_METHOD = 'selective_search'
