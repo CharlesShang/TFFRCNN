@@ -6,4 +6,5 @@ python ./faster_rcnn/train_net.py \
 --imdb kittivoc_train \
 --iters 160000 \
 --cfg ./experiments/cfgs/faster_rcnn_kitti.yml \
---network VGGnet_train
+--network VGGnet_train \
+--restore 0
