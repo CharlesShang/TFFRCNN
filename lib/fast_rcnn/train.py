@@ -91,7 +91,7 @@ class SolverWrapper(object):
         """
         log_image_data = tf.placeholder(tf.uint8, [None, None, 3])
         log_image_name = tf.placeholder(tf.string)
-        log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=50)
+        log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=1)
         # log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
         return log_image, log_image_data, log_image_name
 
@@ -100,58 +100,9 @@ class SolverWrapper(object):
         """Network training loop."""
 
         data_layer = get_data_layer(self.roidb, self.imdb.num_classes)
-   
-        ############# RPN
-        # classification loss
-        rpn_cls_score = tf.reshape(self.net.get_output('rpn_cls_score_reshape'), [-1,2]) # shape Ns * 2
-        rpn_label = tf.reshape(self.net.get_output('rpn-data')[0], [-1]) # shape is Ns
-        # ignore_label(-1)
-        rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, tf.where(tf.not_equal(rpn_label,-1))), [-1,2])
-        rpn_label = tf.reshape(tf.gather(rpn_label,tf.where(tf.not_equal(rpn_label,-1))), [-1])
-        rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label))
 
-
-        # bounding box regression L1 loss
-        # the original axis is 1 * (anchor_nums * 4) * height * width
-        # transpose to 1 * height * width * (anchor_nums * 4)
-        rpn_bbox_pred = self.net.get_output('rpn_bbox_pred')
-        rpn_bbox_targets = tf.transpose(self.net.get_output('rpn-data')[1],[0,2,3,1])
-        rpn_bbox_inside_weights = tf.transpose(self.net.get_output('rpn-data')[2],[0,2,3,1])
-        rpn_bbox_outside_weights = tf.transpose(self.net.get_output('rpn-data')[3],[0,2,3,1])
-        smoothL1_sign = tf.cast(tf.less(tf.abs(tf.sub(rpn_bbox_pred, rpn_bbox_targets)),1),tf.float32)
-        rpn_bbox_deltas = rpn_bbox_pred - rpn_bbox_targets
-        rpn_bbox_deltas_abs = tf.abs(rpn_bbox_deltas)
-        # smooth l1 loss, normalized by locations
-        rpn_loss_box = tf.reduce_mean(tf.reduce_sum(rpn_bbox_outside_weights * \
-                       (tf.square(rpn_bbox_inside_weights * rpn_bbox_deltas) * 0.5 * smoothL1_sign + \
-                       (rpn_bbox_deltas_abs - 0.5) * tf.abs(smoothL1_sign - 1)), \
-                       reduction_indices=[3]))
-        rpn_loss_box = rpn_loss_box * 10
-
-        ############# R-CNN
-        # classification loss
-        # shape is batch * nclass
-        cls_score = self.net.get_output('cls_score')
-        label = tf.reshape(self.net.get_output('roi-data')[1],[-1])
-        cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(cls_score, label))
-
-
-        # bounding box regression L1 loss
-        # shape is batch * (nclass * 4)
-        bbox_pred = self.net.get_output('bbox_pred')
-        bbox_targets = self.net.get_output('roi-data')[2]
-        # each element is {0, 1}, represents background (0), objects (1)
-        bbox_inside_weights = self.net.get_output('roi-data')[3]
-        bbox_outside_weights = self.net.get_output('roi-data')[4]
-        # l1 distance
-        loss_box = \
-            tf.reduce_mean(
-            tf.reduce_sum(bbox_outside_weights * (bbox_inside_weights * tf.abs(bbox_pred - bbox_targets)),
-                        reduction_indices=[1]))
-
-        loss_box = loss_box
-
-        loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
+        loss, cross_entropy, loss_box, rpn_cross_entropy, rpn_loss_box = \
+            self.net.build_loss()
 
         # scalar summary
         tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
