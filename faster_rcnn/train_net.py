@@ -59,8 +59,8 @@ def parse_args():
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
     parser.add_argument('--restore', dest='restore',
-                        help='restore or not', default=True, type=bool,
-                        nargs=argparse.REMAINDER)
+                        help='restore or not',
+                        default=1, type=int)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -106,4 +106,4 @@ if __name__ == '__main__':
               log_dir=log_dir,
               pretrained_model=args.pretrained_model,
               max_iters=args.max_iters,
-              restore=args.restore)
+              restore=bool(int(args.restore)))
