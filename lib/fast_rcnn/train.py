@@ -123,10 +123,10 @@ class SolverWrapper(object):
         rpn_bbox_deltas_abs = tf.abs(rpn_bbox_deltas)
         # smooth l1 loss, normalized by locations
         rpn_loss_box = tf.reduce_mean(tf.reduce_sum(rpn_bbox_outside_weights * \
-                       (tf.square(rpn_bbox_deltas) * 0.5 * smoothL1_sign + \
+                       (tf.square(rpn_bbox_inside_weights * rpn_bbox_deltas) * 0.5 * smoothL1_sign + \
                        (rpn_bbox_deltas_abs - 0.5) * tf.abs(smoothL1_sign - 1)), \
                        reduction_indices=[3]))
-        rpn_loss_box = rpn_loss_box * 100
+        rpn_loss_box = rpn_loss_box * 10
 
         ############# R-CNN
         # classification loss
@@ -146,10 +146,10 @@ class SolverWrapper(object):
         # l1 distance
         loss_box = \
             tf.reduce_mean(
-            tf.reduce_sum(bbox_outside_weights * (tf.abs(bbox_pred - bbox_targets)),
+            tf.reduce_sum(bbox_outside_weights * (bbox_inside_weights * tf.abs(bbox_pred - bbox_targets)),
                         reduction_indices=[1]))
 
-        loss_box = loss_box * 10
+        loss_box = loss_box
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
