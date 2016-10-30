@@ -5,6 +5,7 @@ import cv2, os
 import glob
 import xml.etree.ElementTree as ET
 import shutil
+import numpy as np
 
 def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestrian', 'car', 'cyclist')):
     """
@@ -50,7 +51,7 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
         parent.appendChild(ele)
         return ele
 
-    img_name=name+'.jpg'
+    img_name = name+'.jpg'
 
     # create header
     annotation = append_xml_node_attr('annotation')
@@ -70,36 +71,36 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
     append_xml_node_attr('segmented', parent=annotation, text='0')
 
     # create objects
+    objs = []
     for line in lines:
         splitted_line = line.strip().lower().split()
-        hard = 1 if is_hard(splitted_line) else 0
-        truncted = 0 if float(splitted_line[1]) < 0.1 else 1
-        if splitted_line[0] in class_sets:
+        cls = splitted_line[0].lower()
+        if cls in class_sets:
             obj = append_xml_node_attr('object', parent=annotation)
-            append_xml_node_attr('name', parent=obj, text=splitted_line[0].lower())
+            occlusion = int(float(splitted_line[2]))
+            x1, y1, x2, y2 = int(float(splitted_line[4]) + 1), int(float(splitted_line[5]) + 1), \
+                             int(float(splitted_line[6]) + 1), int(float(splitted_line[7]) + 1)
+            truncation = float(splitted_line[1])
+            difficult = 1 if _is_hard(cls, truncation, occlusion, x1, y1, x2, y2) else 0
+            truncted = 0 if truncation < 0.5 else 1
+
+            append_xml_node_attr('name', parent=obj, text=cls)
             append_xml_node_attr('pose', parent=obj, text='Left')
             append_xml_node_attr('truncated', parent=obj, text=str(truncted))
-            append_xml_node_attr('difficult', parent=obj, text=str(int(hard)))
+            append_xml_node_attr('difficult', parent=obj, text=str(int(difficult)))
             bb = append_xml_node_attr('bndbox', parent=obj)
-            append_xml_node_attr('xmin', parent=bb, text=str(int(float(splitted_line[4]) + 1)))
-            append_xml_node_attr('ymin', parent=bb, text=str(int(float(splitted_line[5]) + 1)))
-            append_xml_node_attr('xmax', parent=bb, text=str(int(float(splitted_line[6]) + 1)))
-            append_xml_node_attr('ymax', parent=bb, text=str(int(float(splitted_line[7]) + 1)))
+            append_xml_node_attr('xmin', parent=bb, text=str(x1))
+            append_xml_node_attr('ymin', parent=bb, text=str(y1))
+            append_xml_node_attr('xmax', parent=bb, text=str(x2))
+            append_xml_node_attr('ymax', parent=bb, text=str(y2))
 
-    return  doc
+            o = {'class': cls, 'box': np.asarray([x1, y1, x2, y2], dtype=float), \
+                 'truncation': truncation, 'difficult': difficult, 'occlusion': occlusion}
+            objs.append(o)
 
-def is_hard(splitted_line):
-    cls = str(splitted_line[0])
-    truncation = float(splitted_line[1])
-    occlusion = float(splitted_line[2])
-    angle = float(splitted_line[3])
-    x1 = float(splitted_line[4])
-    y1 = float(splitted_line[5])
-    x2 = float(splitted_line[6])
-    y2 = float(splitted_line[7])
+    return  doc, objs
 
-    # the rest annotations are for 3d.
-
+def _is_hard(cls, truncation, occlusion, x1, y1, x2, y2):
     # Easy: Min. bounding box height: 40 Px, Max. occlusion level: Fully visible, Max. truncation: 15 %
     # Moderate: Min. bounding box height: 25 Px, Max. occlusion level: Partly occluded, Max. truncation: 30 %
     # Hard: Min. bounding box height: 25 Px, Max. occlusion level: Difficult to see, Max. truncation: 50 %
@@ -107,9 +108,13 @@ def is_hard(splitted_line):
     if y2 - y1 < 25 and occlusion >= 2:
         hard = True
         return hard
-    if truncation > 0.5:
+    if occlusion >= 3:
         hard = True
         return hard
+    if truncation > 0.8:
+        hard = True
+        return hard
+    return hard
 
 def parse_args():
     """
@@ -122,11 +127,13 @@ def parse_args():
     parser.add_argument('--out', dest='outdir',
                         help='path to voc-kitti',
                         default='./data/KITTIVOC', type=str)
+    parser.add_argument('--draw', dest='draw',
+                        help='draw rects on images',
+                        default=0, type=int)
 
     if len(sys.argv) == 1:
         parser.print_help()
         # sys.exit(1)
-
     args = parser.parse_args()
     return args
 
@@ -163,11 +170,30 @@ def build_voc_dirs(outdir):
 
     return os.path.join(outdir, 'Annotations'), os.path.join(outdir, 'JPEGImages'), os.path.join(outdir, 'ImageSets', 'Main')
 
+def _draw_on_image(img, objs, class_sets_dict):
+    colors = [(86, 0, 240), (173, 225, 61), (54, 137, 255),\
+              (151, 0, 255), (243, 223, 48), (0, 117, 255),\
+              (58, 184, 14), (86, 67, 140), (121, 82, 6),\
+              (174, 29, 128), (115, 154, 81), (86, 255, 234)]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    for ind, obj in enumerate(objs):
+        if obj['box'] is None: continue
+        x1, y1, x2, y2 = obj['box'].astype(int)
+        cls_id = class_sets_dict[obj['class']]
+        cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), colors[cls_id % len(colors)], 1)
+        text = '{:s}*|'.format(obj['class'][:3]) if obj['difficult'] == 1 else '{:s}|'.format(obj['class'][:3])
+        text += '{:.1f}|'.format(obj['truncation'])
+        text += str(obj['occlusion'])
+        cv2.putText(img, text, (x1-2, y2-2), font, 0.5, (255, 0, 255), 1)
+    return img
+
+
 if __name__ == '__main__':
     args = parse_args()
 
     _kittidir = args.kitti
     _outdir = args.outdir
+    _draw = bool(args.draw)
     _dest_label_dir, _dest_img_dir, _dest_set_dir = build_voc_dirs(_outdir)
 
     # for kitti only provides training labels
@@ -176,9 +202,11 @@ if __name__ == '__main__':
         _labeldir = os.path.join(_kittidir, 'training', 'label_2')
         _imagedir = os.path.join(_kittidir, 'training', 'image_2')
 
-        class_sets = ('pedestrian', 'car', 'cyclist')
-        fs = [open(os.path.join(_dest_set_dir, cls + '_' + dset + '.txt'), 'w') for cls in class_sets ]
+        # class_sets = ('pedestrian', 'cyclist', 'car', 'person_sitting', 'van', 'truck', 'tram', 'misc', 'dontcare')
+        class_sets = ('pedestrian', 'cyclist', 'car')
         class_sets_dict = dict((k, i) for i, k in enumerate(class_sets))
+        allclasses = {}
+        fs = [open(os.path.join(_dest_set_dir, cls + '_' + dset + '.txt'), 'w') for cls in class_sets ]
         ftrain = open(os.path.join(_dest_set_dir, dset + '.txt'), 'w')
 
         files = glob.glob(os.path.join(_labeldir, '*.txt'))
@@ -191,9 +219,12 @@ if __name__ == '__main__':
             img_file = os.path.join(_imagedir, stem + '.png')
             img = cv2.imread(img_file)
             img_size = img.shape
-            cv2.imwrite(os.path.join(_dest_img_dir, stem + '.jpg'), img)
-            doc = generate_xml(stem, lines, img_size, class_sets)
 
+            doc, objs = generate_xml(stem, lines, img_size, class_sets=class_sets)
+            if _draw:
+                _draw_on_image(img, objs, class_sets_dict)
+
+            cv2.imwrite(os.path.join(_dest_img_dir, stem + '.jpg'), img)
             xmlfile = os.path.join(_dest_label_dir, stem + '.xml')
             with open(xmlfile, 'w') as f:
                 f.write(doc.toprettyxml(indent='	'))
@@ -202,28 +233,29 @@ if __name__ == '__main__':
 
             # build [cls_train.txt]
             # Car_train.txt: 0000xxx [1 | -1]
-            tree = ET.parse(xmlfile)
-            objs = tree.findall('object')
-            # non_diff_objs = [ obj for obj in objs if int(obj.find('difficult').text) == 0]
-            # objs = non_diff_objs
-            num_objs = len(objs)
-            objnames = []
-            for i, obj in enumerate(objs):
-                class_name = obj.find('name').text.strip()
-                objnames.append(class_name)
-            objnames = set(objnames)
-            for cls in objnames:
-                fs[class_sets_dict[cls]].writelines(stem + ' 1\n')
+            cls_in_image = set([o['class'] for o in objs])
+
+            for obj in objs:
+                cls = obj['class']
+                allclasses[cls] = 0 \
+                    if not cls in allclasses.keys() else allclasses[cls] + 1
+
+            for cls in cls_in_image:
+                if cls in class_sets:
+                    fs[class_sets_dict[cls]].writelines(stem + ' 1\n')
             for cls in class_sets:
-                if cls not in objnames:
+                if cls not in cls_in_image:
                     fs[class_sets_dict[cls]].writelines(stem + ' -1\n')
 
             if int(stem) % 100 == 0:
                 print(file)
 
-        for f in fs:
-            f.close()
+        (f.close() for f in fs)
         ftrain.close()
+
+        print '~~~~~~~~~~~~~~~~~~~'
+        print allclasses
+        print '~~~~~~~~~~~~~~~~~~~'
         shutil.copyfile(os.path.join(_dest_set_dir, 'train.txt'), os.path.join(_dest_set_dir, 'val.txt'))
         shutil.copyfile(os.path.join(_dest_set_dir, 'train.txt'), os.path.join(_dest_set_dir, 'trainval.txt'))
         for cls in class_sets:
