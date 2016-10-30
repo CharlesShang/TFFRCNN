@@ -80,8 +80,9 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
             occlusion = int(float(splitted_line[2]))
             x1, y1, x2, y2 = int(float(splitted_line[4]) + 1), int(float(splitted_line[5]) + 1), \
                              int(float(splitted_line[6]) + 1), int(float(splitted_line[7]) + 1)
-            truncted = 0 if float(splitted_line[1]) < 0.1 else 1
-            difficult = 1 if _is_hard(cls, truncted, occlusion, x1, y1, x2, y2) else 0
+            truncation = float(splitted_line[1])
+            difficult = 1 if _is_hard(cls, truncation, occlusion, x1, y1, x2, y2) else 0
+            truncted = 0 if truncation < 0.5 else 1
 
             append_xml_node_attr('name', parent=obj, text=cls)
             append_xml_node_attr('pose', parent=obj, text='Left')
@@ -94,7 +95,7 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
             append_xml_node_attr('ymax', parent=bb, text=str(y2))
 
             o = {'class': cls, 'box': np.asarray([x1, y1, x2, y2], dtype=float), \
-                 'truncated': truncted, 'difficult': difficult, 'occlusion': occlusion}
+                 'truncation': truncation, 'difficult': difficult, 'occlusion': occlusion}
             objs.append(o)
 
     return  doc, objs
@@ -107,13 +108,10 @@ def _is_hard(cls, truncation, occlusion, x1, y1, x2, y2):
     if y2 - y1 < 25 and occlusion >= 2:
         hard = True
         return hard
-    if occlusion >= 2:
+    if occlusion >= 3:
         hard = True
         return hard
-    if truncation > 0.5:
-        hard = True
-        return hard
-    if cls == 'dontcare' or cls == 'misc':
+    if truncation > 0.8:
         hard = True
         return hard
     return hard
@@ -129,11 +127,13 @@ def parse_args():
     parser.add_argument('--out', dest='outdir',
                         help='path to voc-kitti',
                         default='./data/KITTIVOC', type=str)
+    parser.add_argument('--draw', dest='draw',
+                        help='draw rects on images',
+                        default=0, type=int)
 
     if len(sys.argv) == 1:
         parser.print_help()
         # sys.exit(1)
-
     args = parser.parse_args()
     return args
 
@@ -180,9 +180,11 @@ def _draw_on_image(img, objs, class_sets_dict):
         if obj['box'] is None: continue
         x1, y1, x2, y2 = obj['box'].astype(int)
         cls_id = class_sets_dict[obj['class']]
-        cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), colors[cls_id % len(colors)], 2)
-        text = '{:s}'.format(obj['class'])
-        cv2.putText(img, text, (x1, y1), font, 0.6, colors[cls_id % len(colors)], 1)
+        cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), colors[cls_id % len(colors)], 1)
+        text = '{:s}*|'.format(obj['class'][:3]) if obj['difficult'] == 1 else '{:s}|'.format(obj['class'][:3])
+        text += '{:.1f}|'.format(obj['truncation'])
+        text += str(obj['occlusion'])
+        cv2.putText(img, text, (x1-2, y2-2), font, 0.5, (255, 0, 255), 1)
     return img
 
 
@@ -191,6 +193,7 @@ if __name__ == '__main__':
 
     _kittidir = args.kitti
     _outdir = args.outdir
+    _draw = bool(args.draw)
     _dest_label_dir, _dest_img_dir, _dest_set_dir = build_voc_dirs(_outdir)
 
     # for kitti only provides training labels
@@ -199,7 +202,8 @@ if __name__ == '__main__':
         _labeldir = os.path.join(_kittidir, 'training', 'label_2')
         _imagedir = os.path.join(_kittidir, 'training', 'image_2')
 
-        class_sets = ('pedestrian', 'cyclist', 'person_sitting', 'car' , 'van', 'truck', 'tram', 'misc', 'dontcare')
+        # class_sets = ('pedestrian', 'cyclist', 'car', 'person_sitting', 'van', 'truck', 'tram', 'misc', 'dontcare')
+        class_sets = ('pedestrian', 'cyclist', 'car')
         class_sets_dict = dict((k, i) for i, k in enumerate(class_sets))
         allclasses = {}
         fs = [open(os.path.join(_dest_set_dir, cls + '_' + dset + '.txt'), 'w') for cls in class_sets ]
@@ -217,7 +221,8 @@ if __name__ == '__main__':
             img_size = img.shape
 
             doc, objs = generate_xml(stem, lines, img_size, class_sets=class_sets)
-            _draw_on_image(img, objs, class_sets_dict)
+            if _draw:
+                _draw_on_image(img, objs, class_sets_dict)
 
             cv2.imwrite(os.path.join(_dest_img_dir, stem + '.jpg'), img)
             xmlfile = os.path.join(_dest_label_dir, stem + '.xml')
