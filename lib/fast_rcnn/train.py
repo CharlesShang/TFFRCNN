@@ -191,28 +191,26 @@ class SolverWrapper(object):
 
             # add profiling
             # link libcupti.so in LD_LIBRARY_PATH
-            if iter == 5:
-                run_metadata = tf.RunMetadata()
+            # run_metadata = tf.RunMetadata()
+            #
+            # rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+            #     summary_str, _, \
+            #     cls_prob, bbox_pred, rois, \
+            #      =  sess.run(fetches=fetch_list,
+            #                  feed_dict=feed_dict,
+            #                  options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+            #                  run_metadata=run_metadata
+            #                  )
+            #
+            # # write profiling
+            # trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+            # with open('timeline.ctf.json', 'w') as trace_file:
+            #     trace_file.write(trace.generate_chrome_trace_format())
 
-                rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
-                    summary_str, _, \
-                    cls_prob, bbox_pred, rois, \
-                     =  sess.run(fetches=fetch_list,
-                                 feed_dict=feed_dict,
-                                 options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
-                                 run_metadata=run_metadata
-                                 )
-
-                # write profiling
-                trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-                with open('timeline.ctf.json', 'w') as trace_file:
-                    trace_file.write(trace.generate_chrome_trace_format())
-
-            else:
-                rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
-                    summary_str, _, \
-                    cls_prob, bbox_pred, rois, \
-                     =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
+            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+                summary_str, _, \
+                cls_prob, bbox_pred, rois, \
+                 =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
