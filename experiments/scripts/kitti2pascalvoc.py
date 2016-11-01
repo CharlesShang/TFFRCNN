@@ -180,6 +180,9 @@ def _draw_on_image(img, objs, class_sets_dict):
         if obj['box'] is None: continue
         x1, y1, x2, y2 = obj['box'].astype(int)
         cls_id = class_sets_dict[obj['class']]
+        if obj['class'] == 'dontcare':
+            cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 1)
+            continue
         cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), colors[cls_id % len(colors)], 1)
         text = '{:s}*|'.format(obj['class'][:3]) if obj['difficult'] == 1 else '{:s}|'.format(obj['class'][:3])
         text += '{:.1f}|'.format(obj['truncation'])
@@ -203,7 +206,7 @@ if __name__ == '__main__':
         _imagedir = os.path.join(_kittidir, 'training', 'image_2')
 
         # class_sets = ('pedestrian', 'cyclist', 'car', 'person_sitting', 'van', 'truck', 'tram', 'misc', 'dontcare')
-        class_sets = ('pedestrian', 'cyclist', 'car')
+        class_sets = ('pedestrian', 'cyclist', 'car', 'dontcare')
         class_sets_dict = dict((k, i) for i, k in enumerate(class_sets))
         allclasses = {}
         fs = [open(os.path.join(_dest_set_dir, cls + '_' + dset + '.txt'), 'w') for cls in class_sets ]

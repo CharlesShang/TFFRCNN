@@ -48,7 +48,6 @@ class kittivoc(imdb):
         self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
         self._comp_id = 'comp4'
-
         # PASCAL specific config options
         self.config = {'cleanup'     : True,
                        'use_salt'    : True,
@@ -197,7 +196,8 @@ class kittivoc(imdb):
             tree = ET.parse(filename)
             objs = tree.findall('object')
             non_diff_objs = [
-                obj for obj in objs if int(obj.find('difficult').text) == 0]
+                obj for obj in objs if \
+                    int(obj.find('difficult').text) == 0 and obj.find('name').text.lower().strip() != 'dontcare']
             num_objs = len(non_diff_objs)
             if num_objs == 0:
                 print index,
@@ -212,38 +212,64 @@ class kittivoc(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        if not self.config['use_diff']:
-            # Exclude the samples labeled as difficult
-            non_diff_objs = [
-                obj for obj in objs if int(obj.find('difficult').text) == 0]
-            objs = non_diff_objs
+        # if not self.config['use_diff']:
+        #     # Exclude the samples labeled as difficult
+        #     non_diff_objs = [
+        #         obj for obj in objs if int(obj.find('difficult').text) == 0]
+        #     objs = non_diff_objs
         num_objs = len(objs)
 
-        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+        boxes = np.zeros((num_objs, 4), dtype=np.int32)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         # just the same as gt_classes
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         # "Seg" area for pascal is just the box area
         seg_areas = np.zeros((num_objs), dtype=np.float32)
 
+        ishards = np.zeros((num_objs), dtype=np.int32)
+        care_inds = np.empty((0), dtype=np.int32)
+        dontcare_inds = np.empty((0), dtype=np.int32)
+
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
+            x1 = max(float(bbox.find('xmin').text) - 1, 0)
+            y1 = max(float(bbox.find('ymin').text) - 1, 0)
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
-            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+
+            diffc = obj.find('difficult')
+            difficult = 0 if diffc == None else int(diffc.text)
+            ishards[ix] = difficult
+
+            class_name = obj.find('name').text.lower().strip()
+            if class_name != 'dontcare':
+                care_inds = np.append(care_inds, np.asarray([ix], dtype=np.int32))
+            if class_name == 'dontcare':
+                dontcare_inds = np.append(dontcare_inds, np.asarray([ix], dtype=np.int32))
+                boxes[ix, :] = [x1, y1, x2, y2]
+                continue
+            cls = self._class_to_ind[class_name]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
             seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
 
+        # deal with dontcare areas
+        dontcare_areas = boxes[dontcare_inds, :]
+        boxes = boxes[care_inds, :]
+        gt_classes = gt_classes[care_inds]
+        overlaps = overlaps[care_inds, :]
+        seg_areas = seg_areas[care_inds]
+        ishards = ishards[care_inds]
+
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
         return {'boxes' : boxes,
                 'gt_classes': gt_classes,
+                'gt_ishard' : ishards,
+                'dontcare_areas' : dontcare_areas,
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
                 'seg_areas' : seg_areas}

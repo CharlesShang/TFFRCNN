@@ -23,6 +23,8 @@ from ..fast_rcnn.config import cfg
 from ..fast_rcnn.bbox_transform import clip_boxes, bbox_transform_inv
 # <<<< obsolete
 
+_DEBUG = False
+
 class SolverWrapper(object):
     """A simple wrapper around Caffe's solver.
     This wrapper gives us control over he snapshotting process, which we
@@ -46,7 +48,7 @@ class SolverWrapper(object):
         self.saver = tf.train.Saver(max_to_keep=100)
         self.writer = tf.train.SummaryWriter(logdir=logdir,
                                              graph=tf.get_default_graph(),
-                                             flush_secs=10)
+                                             flush_secs=5)
 
     def snapshot(self, sess, iter):
         """Take a snapshot of the network after unnormalizing the learned
@@ -125,6 +127,7 @@ class SolverWrapper(object):
             opt = tf.train.RMSPropOptimizer(cfg.TRAIN.LEARNING_RATE)
         else:
             lr = tf.Variable(cfg.TRAIN.LEARNING_RATE, trainable=False)
+            # lr = tf.Variable(0.0, trainable=False)
             momentum = cfg.TRAIN.MOMENTUM
             opt = tf.train.MomentumOptimizer(lr, momentum)
 
@@ -157,12 +160,14 @@ class SolverWrapper(object):
 
         last_snapshot_iter = -1
         timer = Timer()
+        # for iter in range(max_iters):
         for iter in range(max_iters):
             # learning rate
             if iter >= cfg.TRAIN.STEPSIZE:
                 sess.run(tf.assign(lr, cfg.TRAIN.LEARNING_RATE * cfg.TRAIN.GAMMA))
             else:
                 sess.run(tf.assign(lr, cfg.TRAIN.LEARNING_RATE))
+                # sess.run(tf.assign(lr, 0.0))
 
             # get one batch
             timer.tic()
@@ -176,7 +181,10 @@ class SolverWrapper(object):
                 self.net.data: blobs['data'],
                 self.net.im_info: blobs['im_info'],
                 self.net.keep_prob: 0.5,
-                self.net.gt_boxes: blobs['gt_boxes']}
+                self.net.gt_boxes: blobs['gt_boxes'],
+                self.net.gt_ishard: blobs['gt_ishard'],
+                self.net.dontcare_areas: blobs['dontcare_areas']
+            }
 
             res_fetches = [self.net.get_output('cls_prob'),  # FRCNN class prob
                            self.net.get_output('bbox_pred'), # FRCNN rgs output
@@ -189,28 +197,50 @@ class SolverWrapper(object):
                           summary_op,
                           train_op] + res_fetches
 
-            # add profiling
-            # link libcupti.so in LD_LIBRARY_PATH
-            # run_metadata = tf.RunMetadata()
-            #
-            # rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
-            #     summary_str, _, \
-            #     cls_prob, bbox_pred, rois, \
-            #      =  sess.run(fetches=fetch_list,
-            #                  feed_dict=feed_dict,
-            #                  options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
-            #                  run_metadata=run_metadata
-            #                  )
-            #
-            # # write profiling
-            # trace = timeline.Timeline(step_stats=run_metadata.step_stats)
-            # with open('timeline.ctf.json', 'w') as trace_file:
-            #     trace_file.write(trace.generate_chrome_trace_format())
+            if _DEBUG:
 
-            rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+                # add profiling
+                # link libcupti.so in LD_LIBRARY_PATH
+                #
+                # run_metadata = tf.RunMetadata()
+                # rpn_loss_cls_value, rpn_loss_box_value,loss_cls_value, loss_box_value,\
+                #     summary_str, _, \
+                #     cls_prob, bbox_pred, rois, \
+                #      =  sess.run(fetches=fetch_list,
+                #                  feed_dict=feed_dict,
+                #                  options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+                #                  run_metadata=run_metadata
+                #                  )
+                #
+                # # write profiling
+                # trace = timeline.Timeline(step_stats=run_metadata.step_stats)
+                # with open('timeline.ctf.json', 'w') as trace_file:
+                #     trace_file.write(trace.generate_chrome_trace_format())
+
+                fetch_list = [rpn_cross_entropy,
+                              rpn_loss_box,
+                              cross_entropy,
+                              loss_box,
+                              summary_op] + res_fetches
+
+                fetch_list += []
+                rpn_loss_cls_value, rpn_loss_box_value, loss_cls_value, loss_box_value, \
+                summary_str, \
+                cls_prob, bbox_pred, rois, \
+                        =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
+            else:
+                fetch_list = [rpn_cross_entropy,
+                              rpn_loss_box,
+                              cross_entropy,
+                              loss_box,
+                              summary_op,
+                              train_op] + res_fetches
+
+                fetch_list += []
+                rpn_loss_cls_value, rpn_loss_box_value, loss_cls_value, loss_box_value, \
                 summary_str, _, \
                 cls_prob, bbox_pred, rois, \
-                 =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
+                        =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
@@ -221,6 +251,8 @@ class SolverWrapper(object):
                 # plus mean
                 ori_im = np.squeeze(blobs['data']) + cfg.PIXEL_MEANS
                 ori_im = ori_im.astype(dtype=np.uint8, copy=False)
+                ori_im = _draw_gt_to_image(ori_im, blobs['gt_boxes'], blobs['gt_ishard'])
+                ori_im = _draw_dontcare_to_image(ori_im, blobs['dontcare_areas'])
                 # draw rects
                 boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rois, blobs['im_info'][0][2], ori_im.shape)
                 res = nms_wrapper(scores, boxes)
@@ -317,11 +349,33 @@ def _draw_boxes_to_image(im, res):
             cnt = (cnt + 1)
     return image
 
+def _draw_gt_to_image(im, gt_boxes, gt_ishard):
+    image = np.copy(im)
+
+    for i in range(0, gt_boxes.shape[0]):
+        (x1, y1, x2, y2, score) = gt_boxes[i, :]
+        if gt_ishard[i] == 0:
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), 2)
+        else:
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
+    return image
+
+def _draw_dontcare_to_image(im, dontcare):
+    image = np.copy(im)
+
+    for i in range(0, dontcare.shape[0]):
+        (x1, y1, x2, y2) = dontcare[i, :]
+        cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+    return image
+
+
 
 def train_net(network, imdb, roidb, output_dir, log_dir, pretrained_model=None, max_iters=40000, restore=False):
     """Train a Fast R-CNN network."""
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+    config = tf.ConfigProto(allow_soft_placement=True)
+    config.gpu_options.allocator_type = 'BFC'
+    with tf.Session(config=config) as sess:
         sw = SolverWrapper(sess, network, imdb, roidb, output_dir, logdir= log_dir, pretrained_model=pretrained_model)
         print 'Solving...'
         sw.train_model(sess, max_iters, restore=restore)

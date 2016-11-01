@@ -135,7 +135,9 @@ __C.TRAIN.PROPOSAL_METHOD = 'selective_search'
 # tall and thin or both short and wide) in order to avoid wasting computation
 # on zero-padding.
 __C.TRAIN.ASPECT_GROUPING = True
-
+# preclude rois intersected with dontcare areas above the value
+__C.TRAIN.DONTCARE_AREA_INTERSECTION_HI = 0.5
+__C.TRAIN.PRECLUDE_HARD_SAMPLES = True
 # Use RPN to detect objects
 __C.TRAIN.HAS_RPN = False
 # IOU >= thresh: positive example
