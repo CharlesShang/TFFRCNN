@@ -5,11 +5,14 @@ from ..fast_rcnn.config import cfg
 class VGGnet_train(Network):
     def __init__(self, trainable=True):
         self.inputs = []
-        self.data = tf.placeholder(tf.float32, shape=[None, None, None, 3])
-        self.im_info = tf.placeholder(tf.float32, shape=[None, 3])
-        self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
+        self.data = tf.placeholder(tf.float32, shape=[None, None, None, 3], name='data')
+        self.im_info = tf.placeholder(tf.float32, shape=[None, 3], name='im_info')
+        self.gt_boxes = tf.placeholder(tf.float32, shape=[None, 5], name='gt_boxes')
+        self.gt_ishard = tf.placeholder(tf.int32, shape=[None], name='gt_ishard')
+        self.dontcare_areas = tf.placeholder(tf.float32, shape=[None, 4], name='dontcare_areas')
         self.keep_prob = tf.placeholder(tf.float32)
-        self.layers = dict({'data':self.data, 'im_info':self.im_info, 'gt_boxes':self.gt_boxes})
+        self.layers = dict({'data':self.data, 'im_info':self.im_info, 'gt_boxes':self.gt_boxes,\
+                            'gt_ishard': self.gt_ishard, 'dontcare_areas': self.dontcare_areas})
         self.trainable = trainable
         self.setup()
 
@@ -51,24 +54,26 @@ class VGGnet_train(Network):
 
         # generating training labels on the fly
         # output: rpn_labels rpn_bbox_targets rpn_bbox_inside_weights rpn_bbox_outside_weights
-        (self.feed('rpn_cls_score','gt_boxes','im_info','data')
+        (self.feed('rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info')
              .anchor_target_layer(_feat_stride, anchor_scales, name = 'rpn-data' ))
 
         (self.feed('rpn_cls_score')
-             .reshape_layer(2, name = 'rpn_cls_score_reshape')
+             .reshape_layer(2, name = 'rpn_cls_score_reshape') # 1 x H x W x 18 -> 1 x 9H x W x 2
              .softmax(name='rpn_cls_prob'))
 
-        (self.feed('rpn_cls_prob')
+        (self.feed('rpn_cls_prob') # 1 x 9H x W x 2 -> 1 x H x W x 18
              .reshape_layer(len(anchor_scales)*3*2, name = 'rpn_cls_prob_reshape'))
 
         # ========= RoI Proposal ============
         # add the delta(output) to anchors then
         # choose some reasonabel boxes, considering scores, ratios, size and iou
+        # rpn_rois <- (1 x H x W x A, 5) [0, x1, y1, x2, y2]
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
              .proposal_layer(_feat_stride, anchor_scales, 'TRAIN',name = 'rpn_rois'))
 
-        # matching boxes and groundtruth, and randomly sample some rois for RCNN
-        (self.feed('rpn_rois','gt_boxes')
+        # matching boxes and groundtruth,
+        # and randomly sample some rois and labels for RCNN
+        (self.feed('rpn_rois','gt_boxes', 'gt_ishard', 'dontcare_areas')
              .proposal_target_layer(n_classes,name = 'roi-data'))
 
         #========= RCNN ============        
@@ -83,4 +88,3 @@ class VGGnet_train(Network):
 
         (self.feed('drop7')
              .fc(n_classes*4, relu=False, name='bbox_pred'))
-

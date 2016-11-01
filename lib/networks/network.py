@@ -156,6 +156,7 @@ class Network(object):
     def proposal_layer(self, input, _feat_stride, anchor_scales, cfg_key, name):
         if isinstance(input[0], tuple):
             input[0] = input[0][0]
+            # rpn_rois <- (1 x H x W x A, 5) [0, x1, y1, x2, y2]
         return tf.reshape(tf.py_func(proposal_layer_py,\
                                      [input[0],input[1],input[2], cfg_key, _feat_stride, anchor_scales],\
                                      [tf.float32]),
@@ -168,16 +169,16 @@ class Network(object):
             input[0] = input[0][0]
 
         with tf.variable_scope(name) as scope:
-
+            # 'rpn_cls_score', 'gt_boxes', 'gt_ishard', 'dontcare_areas', 'im_info'
             rpn_labels,rpn_bbox_targets,rpn_bbox_inside_weights,rpn_bbox_outside_weights = \
                 tf.py_func(anchor_target_layer_py,
-                           [input[0],input[1],input[2],input[3], _feat_stride, anchor_scales],
+                           [input[0],input[1],input[2],input[3],input[4], _feat_stride, anchor_scales],
                            [tf.float32,tf.float32,tf.float32,tf.float32])
 
-            rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels')
-            rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets')
-            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights')
-            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights')
+            rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # 1 x 9H x W x 2
+            rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # 1 x 4A x H x W
+            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # 1 x 4A x H x W
+            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # 1 x 4A x H x W
 
 
             return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
@@ -188,12 +189,13 @@ class Network(object):
         if isinstance(input[0], tuple):
             input[0] = input[0][0]
         with tf.variable_scope(name) as scope:
-
+            #inputs: 'rpn_rois','gt_boxes', 'gt_ishard', 'dontcare_areas'
             rois,labels,bbox_targets,bbox_inside_weights,bbox_outside_weights \
-                = tf.py_func(proposal_target_layer_py,[input[0],input[1],classes],
+                = tf.py_func(proposal_target_layer_py,
+                             [input[0],input[1],input[2],input[3],classes],
                              [tf.float32,tf.float32,tf.float32,tf.float32,tf.float32])
 
-            rois = tf.reshape(rois,[-1,5] , name = 'rois')
+            rois = tf.reshape(rois,[-1,5] , name = 'rois') # rois <- (1 x H x W x A, 5) e.g. [0, x1, y1, x2, y2]
             labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
             bbox_targets = tf.convert_to_tensor(bbox_targets, name = 'bbox_targets')
             bbox_inside_weights = tf.convert_to_tensor(bbox_inside_weights, name = 'bbox_inside_weights')
@@ -208,6 +210,9 @@ class Network(object):
     def reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)
         if name == 'rpn_cls_prob_reshape':
+            # transpose: 1 x H x W x 18 -> 1 x 18 x H x W
+            # reshape: 1 x 2 x (9H) x W
+            # transpose: 1 x 2 x (9H) x W -> 1 x 9H x W x 2
              return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),
                                             [   input_shape[0],
                                                 int(d),
@@ -287,8 +292,8 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def build_loss(self):
 
+    def build_loss(self):
         ############# RPN
         # classification loss
         rpn_cls_score = tf.reshape(self.get_output('rpn_cls_score_reshape'), [-1, 2])  # shape Ns * 2
@@ -325,7 +330,7 @@ class Network(object):
 
         # bounding box regression L1 loss
         # shape is batch * (nclass * 4)
-        bbox_pred = self.get_output('bbox_pred')
+        bbox_pred = self.get_output('bbox_pred') # (N, Kx4)
         bbox_targets = self.get_output('roi-data')[2]
         # each element is {0, 1}, represents background (0), objects (1)
         bbox_inside_weights = self.get_output('roi-data')[3]

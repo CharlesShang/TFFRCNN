@@ -122,7 +122,18 @@ class imdb(object):
                      'gt_overlaps' : self.roidb[i]['gt_overlaps'],
                      'gt_classes' : self.roidb[i]['gt_classes'],
                      'flipped' : True}
+
+            if 'gt_ishard' in self.roidb[i] and 'dontcare_areas' in self.roidb[i]:
+                entry['gt_ishard'] = self.roidb[i]['gt_ishard'].copy()
+                dontcare_areas = self.roidb[i]['dontcare_areas'].copy()
+                oldx1 = dontcare_areas[:, 0].copy()
+                oldx2 = dontcare_areas[:, 2].copy()
+                dontcare_areas[:, 0] = widths[i] - oldx2 - 1
+                dontcare_areas[:, 2] = widths[i] - oldx1 - 1
+                entry['dontcare_areas'] = dontcare_areas
+
             self.roidb.append(entry)
+
         self._image_index = self._image_index * 2
 
     def evaluate_recall(self, candidate_boxes=None, thresholds=None,
