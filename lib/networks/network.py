@@ -330,13 +330,13 @@ class Network(object):
         rpn_label = tf.reshape(self.get_output('rpn-data')[0], [-1])  # shape (HxWxA)
         # ignore_label(-1)
         keeps_cls = tf.where(tf.not_equal(rpn_label, -1))
+        keeps_rgs = tf.where(tf.equal(rpn_label, 1))
         rpn_cls_score = tf.gather(rpn_cls_score, keeps_cls)
         rpn_label = tf.gather(rpn_label, keeps_cls)
         rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label))
 
         # bounding box regression L1 loss
         # transpose to 1 * height * width * (anchor_nums * 4)
-        keeps_rgs = tf.where(tf.equal(rpn_label, 1))
         rpn_bbox_pred = tf.reshape(self.get_output('rpn_bbox_pred'), [-1, 4])
         rpn_bbox_targets = tf.reshape(self.get_output('rpn-data')[1],[-1, 4])
         rpn_bbox_inside_weights = tf.reshape(self.get_output('rpn-data')[2], [-1, 4])
@@ -347,8 +347,8 @@ class Network(object):
         rpn_bbox_inside_weights = tf.gather(rpn_bbox_inside_weights, keeps_rgs)
 
         # smooth l1 loss, normalized by locations
-        rpn_loss_box = tf.reduce_mean(tf.reduce_sum(\
-            self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
+        rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
+            rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
             reduction_indices=[1])) * 10
 
 
@@ -369,7 +369,7 @@ class Network(object):
 
         deltas = bbox_inside_weights * self.smooth_l1_dist(bbox_pred, bbox_targets)
 
-        keeps_rois = tf.where(tf.equal(label, -1))
+        keeps_rois = tf.where(tf.not_equal(label, 0))
         deltas = tf.gather(tf.reshape(deltas, [-1, 4]), keeps_rois)
 
         # l1 distance
