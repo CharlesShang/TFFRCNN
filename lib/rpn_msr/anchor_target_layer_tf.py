@@ -27,7 +27,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
     labels and bounding-box regression targets.
     Parameters
     ----------
-    rpn_cls_score: (1, H, W, 2) bg/fg scores of previous conv layer
+    rpn_cls_score: (1, H, W, Ax2) bg/fg scores of previous conv layer
     gt_boxes: (G, 5) vstack of [x1, y1, x2, y2, class]
     gt_ishard: (G, 1), 1 or 0 indicates difficult or not
     dontcare_areas: (D, 4), some areas may contains small objs but no labelling. D may be 0
@@ -95,7 +95,8 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
     # 1. Generate proposals from bbox deltas and shifted anchors
     shift_x = np.arange(0, width) * _feat_stride
     shift_y = np.arange(0, height) * _feat_stride
-    shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y) # in W H order
+    # K is H x W
     shifts = np.vstack((shift_x.ravel(), shift_y.ravel(),
                         shift_x.ravel(), shift_y.ravel())).transpose()
     # add A anchors (1, A, 4) to
@@ -127,6 +128,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
         print 'anchors.shape', anchors.shape
 
     # label: 1 is positive, 0 is negative, -1 is dont care
+    # (A)
     labels = np.empty((len(inds_inside), ), dtype=np.float32)
     labels.fill(-1)
 
@@ -205,6 +207,8 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
         num_examples = np.sum(labels >= 0)
         positive_weights = np.ones((1, 4)) * 1.0 / num_examples
         negative_weights = np.ones((1, 4)) * 1.0 / num_examples
+        # positive_weights = np.ones((1, 4)) * 1.0 / np.max(np.sum(labels == 1), 1)
+        # negative_weights = np.ones((1, 4)) * 1.0 / np.max(np.sum(labels == 0), 1)
     else:
         assert ((cfg.TRAIN.RPN_POSITIVE_WEIGHT > 0) &
                 (cfg.TRAIN.RPN_POSITIVE_WEIGHT < 1))
@@ -244,18 +248,17 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
 
     # labels
     #pdb.set_trace()
-    labels = labels.reshape((1, height, width, A)).transpose(0, 3, 1, 2) # NxCxHxW, caffe format
-    labels = labels.reshape((1, 1, A * height, width)) #(1, 1, A*h, w)
+    labels = labels.reshape((1, height, width, A))
     rpn_labels = labels
 
     # bbox_targets
     bbox_targets = bbox_targets \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 4))
 
     rpn_bbox_targets = bbox_targets
     # bbox_inside_weights
     bbox_inside_weights = bbox_inside_weights \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 4))
     #assert bbox_inside_weights.shape[2] == height
     #assert bbox_inside_weights.shape[3] == width
 
@@ -263,7 +266,7 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
 
     # bbox_outside_weights
     bbox_outside_weights = bbox_outside_weights \
-        .reshape((1, height, width, A * 4)).transpose(0, 3, 1, 2)
+        .reshape((1, height, width, A * 4))
     #assert bbox_outside_weights.shape[2] == height
     #assert bbox_outside_weights.shape[3] == width
 

@@ -156,6 +156,7 @@ class Network(object):
     def proposal_layer(self, input, _feat_stride, anchor_scales, cfg_key, name):
         if isinstance(input[0], tuple):
             input[0] = input[0][0]
+            # input[0] shape is (1, H, W, Ax2)
             # rpn_rois <- (1 x H x W x A, 5) [0, x1, y1, x2, y2]
         return tf.reshape(tf.py_func(proposal_layer_py,\
                                      [input[0],input[1],input[2], cfg_key, _feat_stride, anchor_scales],\
@@ -175,10 +176,10 @@ class Network(object):
                            [input[0],input[1],input[2],input[3],input[4], _feat_stride, anchor_scales],
                            [tf.float32,tf.float32,tf.float32,tf.float32])
 
-            rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # 1 x 9H x W x 2
-            rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # 1 x 4A x H x W
-            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # 1 x 4A x H x W
-            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # 1 x 4A x H x W
+            rpn_labels = tf.convert_to_tensor(tf.cast(rpn_labels,tf.int32), name = 'rpn_labels') # shape is (1 x H x W x A, 2)
+            rpn_bbox_targets = tf.convert_to_tensor(rpn_bbox_targets, name = 'rpn_bbox_targets') # shape is (1 x H x W x A, 4)
+            rpn_bbox_inside_weights = tf.convert_to_tensor(rpn_bbox_inside_weights , name = 'rpn_bbox_inside_weights') # shape is (1 x H x W x A, 4)
+            rpn_bbox_outside_weights = tf.convert_to_tensor(rpn_bbox_outside_weights , name = 'rpn_bbox_outside_weights') # shape is (1 x H x W x A, 4)
 
 
             return rpn_labels, rpn_bbox_targets, rpn_bbox_inside_weights, rpn_bbox_outside_weights
@@ -194,10 +195,11 @@ class Network(object):
                 = tf.py_func(proposal_target_layer_py,
                              [input[0],input[1],input[2],input[3],classes],
                              [tf.float32,tf.float32,tf.float32,tf.float32,tf.float32])
-
-            rois = tf.reshape(rois,[-1,5] , name = 'rois') # rois <- (1 x H x W x A, 5) e.g. [0, x1, y1, x2, y2]
-            labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels')
-            bbox_targets = tf.convert_to_tensor(bbox_targets, name = 'bbox_targets')
+            # rois <- (1 x H x W x A, 5) e.g. [0, x1, y1, x2, y2]
+            # rois = tf.convert_to_tensor(rois, name='rois')
+            rois = tf.reshape(rois, [-1, 5], name='rois') # goes to roi_pooling
+            labels = tf.convert_to_tensor(tf.cast(labels,tf.int32), name = 'labels') # goes to FRCNN loss
+            bbox_targets = tf.convert_to_tensor(bbox_targets, name = 'bbox_targets') # goes to FRCNN loss
             bbox_inside_weights = tf.convert_to_tensor(bbox_inside_weights, name = 'bbox_inside_weights')
             bbox_outside_weights = tf.convert_to_tensor(bbox_outside_weights, name = 'bbox_outside_weights')
 
@@ -210,9 +212,10 @@ class Network(object):
     def reshape_layer(self, input, d, name):
         input_shape = tf.shape(input)
         if name == 'rpn_cls_prob_reshape':
-            # transpose: 1 x H x W x 18 -> 1 x 18 x H x W
-            # reshape: 1 x 2 x (9H) x W
-            # transpose: 1 x 2 x (9H) x W -> 1 x 9H x W x 2
+            #
+            # transpose: (1, H, W, A x 2) -> (1, A x 2, H, W)
+            # reshape: (1, 2, A x H, W)
+            # transpose: -> (1, 9H, W, 2)
              return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),
                                             [   input_shape[0],
                                                 int(d),
@@ -228,6 +231,16 @@ class Network(object):
                                             input_shape[2]
                                         ]),
                                  [0,2,3,1],name=name)
+
+    @layer
+    def spatial_reshape_layer(self, input, d, name):
+        input_shape = tf.shape(input)
+        # transpose: (1, H, W, A x d) -> (1, H, WxA, d)
+        return tf.reshape(input,\
+                               [input_shape[0],\
+                                input_shape[1], \
+                                -1,\
+                                int(d)])
 
     # @layer
     # def feature_extrapolating(self, input, scales_base, num_scale_base, num_per_octave, name):
@@ -289,58 +302,76 @@ class Network(object):
             return tf.nn.softmax(input,name=name)
 
     @layer
+    def spatial_softmax(self, input, name):
+        input_shape = tf.shape(input)
+        # d = input.get_shape()[-1]
+        return tf.reshape(tf.nn.softmax(tf.reshape(input, [-1, input_shape[3]])),
+                          [-1, input_shape[1], input_shape[2], input_shape[3]], name=name)
+
+
+    @layer
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
+
+    def smooth_l1_dist(self, predicts, targets, th = 1, name='smooth_l1_dist'):
+        with tf.name_scope(name=name) as scope:
+            deltas = predicts - targets
+            deltas_abs = tf.abs(deltas)
+            smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
+            return tf.square(deltas) * 0.5 * smoothL1_sign + \
+                        (deltas_abs - 0.5) * tf.abs(smoothL1_sign - 1)
+
 
 
     def build_loss(self):
         ############# RPN
         # classification loss
-        rpn_cls_score = tf.reshape(self.get_output('rpn_cls_score_reshape'), [-1, 2])  # shape Ns * 2
-        rpn_label = tf.reshape(self.get_output('rpn-data')[0], [-1])  # shape is Ns
+        rpn_cls_score = tf.reshape(self.get_output('rpn_cls_score_reshape'), [-1, 2])  # shape (HxWxA, 2)
+        rpn_label = tf.reshape(self.get_output('rpn-data')[0], [-1])  # shape (HxWxA)
         # ignore_label(-1)
-        rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, tf.where(tf.not_equal(rpn_label, -1))), [-1, 2])
-        rpn_label = tf.reshape(tf.gather(rpn_label, tf.where(tf.not_equal(rpn_label, -1))), [-1])
+        keeps_cls = tf.where(tf.not_equal(rpn_label, -1))
+        rpn_cls_score = tf.gather(rpn_cls_score, keeps_cls)
+        rpn_label = tf.gather(rpn_label, keeps_cls)
         rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label))
 
         # bounding box regression L1 loss
-        # the original axis is 1 * (anchor_nums * 4) * height * width
         # transpose to 1 * height * width * (anchor_nums * 4)
-        rpn_bbox_pred = self.get_output('rpn_bbox_pred')
-        rpn_bbox_targets = tf.transpose(self.get_output('rpn-data')[1], [0, 2, 3, 1])
-        rpn_bbox_inside_weights = tf.transpose(self.get_output('rpn-data')[2], [0, 2, 3, 1])
-        rpn_bbox_outside_weights = tf.transpose(self.get_output('rpn-data')[3], [0, 2, 3, 1])
-        smoothL1_sign = tf.cast(tf.less(tf.abs(tf.sub(rpn_bbox_pred, rpn_bbox_targets)), 1), tf.float32)
-        rpn_bbox_deltas = rpn_bbox_pred - rpn_bbox_targets
-        rpn_bbox_deltas_abs = tf.abs(rpn_bbox_deltas)
+        keeps_rgs = tf.where(tf.equal(rpn_label, 1))
+        rpn_bbox_pred = tf.reshape(self.get_output('rpn_bbox_pred'), [-1, 4])
+        rpn_bbox_targets = tf.reshape(self.get_output('rpn-data')[1],[-1, 4])
+        rpn_bbox_inside_weights = tf.reshape(self.get_output('rpn-data')[2], [-1, 4])
+        rpn_bbox_outside_weights = tf.reshape(self.get_output('rpn-data')[3],[-1, 4]) # (1, H, W, A * 4)
+
+        rpn_bbox_pred = tf.gather(rpn_bbox_pred, keeps_rgs)
+        rpn_bbox_targets = tf.gather(rpn_bbox_targets, keeps_rgs)
+        rpn_bbox_inside_weights = tf.gather(rpn_bbox_inside_weights, keeps_rgs)
+
         # smooth l1 loss, normalized by locations
-        rpn_loss_box = tf.reduce_mean(tf.reduce_sum(rpn_bbox_outside_weights * \
-                                                    (tf.square(
-                                                        rpn_bbox_inside_weights * rpn_bbox_deltas) * 0.5 * smoothL1_sign + \
-                                                     (rpn_bbox_deltas_abs - 0.5) * tf.abs(smoothL1_sign - 1)), \
-                                                    reduction_indices=[3]))
+        rpn_loss_box = tf.reduce_mean(tf.reduce_sum(\
+            self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
+            reduction_indices=[1])\
+        )
         rpn_loss_box = rpn_loss_box * 10
 
         ############# R-CNN
         # classification loss
         # shape is batch * nclass
         cls_score = self.get_output('cls_score')
-        label = tf.reshape(self.get_output('roi-data')[1], [-1])
+        label = tf.reshape(self.get_output('roi-data')[1], [-1]) # (HxWxA)
         cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(cls_score, label))
 
         # bounding box regression L1 loss
         # shape is batch * (nclass * 4)
-        bbox_pred = self.get_output('bbox_pred') # (N, Kx4)
-        bbox_targets = self.get_output('roi-data')[2]
+        bbox_pred = self.get_output('bbox_pred') # (HxW, Ax5)
+        bbox_targets = self.get_output('roi-data')[2] # (HxW, Ax5)
         # each element is {0, 1}, represents background (0), objects (1)
-        bbox_inside_weights = self.get_output('roi-data')[3]
-        bbox_outside_weights = self.get_output('roi-data')[4]
+        bbox_inside_weights = self.get_output('roi-data')[3] # (HxW, Ax5)
+        bbox_outside_weights = self.get_output('roi-data')[4] # (HxW, Ax5)
         # l1 distance
-        loss_box = \
-            tf.reduce_mean(
-                tf.reduce_sum(bbox_outside_weights * (bbox_inside_weights * tf.abs(bbox_pred - bbox_targets)),
-                              reduction_indices=[1]))
+        loss_box = tf.reduce_mean(tf.reduce_sum(\
+            bbox_outside_weights * bbox_inside_weights * self.smooth_l1_dist(bbox_pred, bbox_targets),\
+            reduction_indices=[1]))
 
-        loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box * 10
+        loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
         return loss, cross_entropy, loss_box, rpn_cross_entropy, rpn_loss_box
