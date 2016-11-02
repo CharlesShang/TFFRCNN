@@ -151,8 +151,8 @@ class SolverWrapper(object):
         # resuming a trainer
         if restore:
             try:
-                print 'Restoring from {}...'.format(self.output_dir),
                 ckpt = tf.train.get_checkpoint_state(self.output_dir)
+                print 'Restoring from {}...'.format(ckpt.model_checkpoint_path),
                 self.saver.restore(sess, ckpt.model_checkpoint_path)
                 print 'done'
             except:
@@ -223,10 +223,13 @@ class SolverWrapper(object):
                               loss_box,
                               summary_op] + res_fetches
 
+                fetch_list += [self.net.get_output('rpn_cls_score_reshape'), self.net.get_output('rpn_cls_prob_reshape')]
+
                 fetch_list += []
                 rpn_loss_cls_value, rpn_loss_box_value, loss_cls_value, loss_box_value, \
                 summary_str, \
                 cls_prob, bbox_pred, rois, \
+                rpn_cls_score_reshape_np, rpn_cls_prob_reshape_np\
                         =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
             else:
                 fetch_list = [rpn_cross_entropy,

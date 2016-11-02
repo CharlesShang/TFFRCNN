@@ -23,7 +23,21 @@ DEBUG = False
 Outputs object detection proposals by applying estimated bounding-box
 transformations to a set of regular boxes (called "anchors").
 """
-def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stride = [16,],anchor_scales = [8, 16, 32]):
+def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_stride = [16,], anchor_scales = [8, 16, 32]):
+    """
+    Parameters
+    ----------
+    rpn_cls_prob_reshape: (1 , H , W , Ax2) outputs of RPN, prob of bg or fg
+    rpn_bbox_pred: (1 , H , W , Ax4), rgs boxes output of RPN
+    im_info: a list of [image_height, image_width, scale_ratios]
+    cfg_key: 'TRAIN' or 'TEST'
+    _feat_stride: the downsampling ratio of feature map to the original input image
+    anchor_scales: the scales to the basic_anchor (basic anchor is [16, 16])
+    ----------
+    Returns
+    ----------
+    rpn_rois : (1 x H x W x A, 5) e.g. [0, x1, y1, x2, y2]
+
     # Algorithm:
     #
     # for each (H, W) location i
@@ -37,10 +51,13 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     # take after_nms_topN proposals after NMS
     # return the top proposals (-> RoIs top, scores top)
     #layer_params = yaml.load(self.param_str_)
+
+    """
     _anchors = generate_anchors(scales=np.array(anchor_scales))
     _num_anchors = _anchors.shape[0]
-    rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2])
-    rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])
+    # rpn_cls_prob_reshape = np.transpose(rpn_cls_prob_reshape,[0,3,1,2]) #-> (1 , 2xA, H , W)
+    # rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,1,2])              # -> (1 , Ax4, H , W)
+
     #rpn_cls_prob_reshape = np.transpose(np.reshape(rpn_cls_prob_reshape,[1,rpn_cls_prob_reshape.shape[0],rpn_cls_prob_reshape.shape[1],rpn_cls_prob_reshape.shape[2]]),[0,3,2,1])
     #rpn_bbox_pred = np.transpose(rpn_bbox_pred,[0,3,2,1])
     im_info = im_info[0]
@@ -54,9 +71,13 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     nms_thresh    = cfg[cfg_key].RPN_NMS_THRESH
     min_size      = cfg[cfg_key].RPN_MIN_SIZE
 
+    height, width = rpn_cls_prob_reshape.shape[1:3]
+
     # the first set of _num_anchors channels are bg probs
     # the second set are the fg probs, which we want
-    scores = rpn_cls_prob_reshape[:, _num_anchors:, :, :]
+    # (1, H, W, A)
+    scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],
+                        [1, height, width, _num_anchors])
     bbox_deltas = rpn_bbox_pred
     #im_info = bottom[2].data[0, :]
 
@@ -65,8 +86,6 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
         print 'scale: {}'.format(im_info[2])
 
     # 1. Generate proposals from bbox deltas and shifted anchors
-    height, width = scores.shape[-2:]
-
     if DEBUG:
         print 'score map size: {}'.format(scores.shape)
 
@@ -96,14 +115,14 @@ def proposal_layer(rpn_cls_prob_reshape,rpn_bbox_pred,im_info,cfg_key,_feat_stri
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 4))
+    bbox_deltas = bbox_deltas.reshape((-1, 4)) #(HxWxKxA, 4)
 
     # Same story for the scores:
     #
     # scores are (1, A, H, W) format
     # transpose to (1, H, W, A)
     # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
-    scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
+    scores = scores.reshape((-1, 1))
 
     # Convert anchors into proposals via bbox transformations
     proposals = bbox_transform_inv(anchors, bbox_deltas)

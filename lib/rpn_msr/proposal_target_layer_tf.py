@@ -55,10 +55,12 @@ def proposal_target_layer(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, _num_cl
     else:
         gt_easyboxes = gt_boxes
 
+    """
+    add the ground-truth to rois will cause zero loss! not good for visuallization
+    """
     zeros = np.zeros((gt_easyboxes.shape[0], 1), dtype=gt_easyboxes.dtype)
     all_rois = np.vstack(
-        (all_rois, np.hstack((zeros, gt_easyboxes[:, :-1])))
-    )
+        (all_rois, np.hstack((zeros, gt_easyboxes[:, :-1]))))
 
     # Sanity check: single batch only
     assert np.all(all_rois[:, 0] == 0), \
@@ -94,7 +96,7 @@ def proposal_target_layer(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, _num_cl
 
     bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
 
-    return rois,labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
+    return rois, labels, bbox_targets, bbox_inside_weights, bbox_outside_weights
 
 def _sample_rois(all_rois, gt_boxes, gt_ishard, dontcare_areas, fg_rois_per_image, rois_per_image, num_classes):
     """Generate a random sample of RoIs comprising foreground and background

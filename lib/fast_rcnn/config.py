@@ -244,6 +244,7 @@ __C.MATLAB = 'matlab'
 
 # Place outputs under an experiments directory
 __C.EXP_DIR = 'default'
+__C.LOG_DIR = 'default'
 
 # Use GPU implementation of non-maximum suppression
 __C.USE_GPU_NMS = True
@@ -272,7 +273,7 @@ def get_log_dir(imdb):
     (if not None).
     """
     log_dir = osp.abspath(\
-        osp.join(__C.ROOT_DIR, 'logs', __C.EXP_DIR, imdb.name, strftime("%Y-%m-%d-%H-%M-%S", localtime())))
+        osp.join(__C.ROOT_DIR, 'logs', __C.LOG_DIR, imdb.name, strftime("%Y-%m-%d-%H-%M-%S", localtime())))
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     return log_dir
