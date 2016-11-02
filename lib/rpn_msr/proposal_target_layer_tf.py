@@ -55,10 +55,12 @@ def proposal_target_layer(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, _num_cl
     else:
         gt_easyboxes = gt_boxes
 
+    """
+    add the ground-truth to rois will cause zero loss! not good for visuallization
+    """
     zeros = np.zeros((gt_easyboxes.shape[0], 1), dtype=gt_easyboxes.dtype)
     all_rois = np.vstack(
-        (all_rois, np.hstack((zeros, gt_easyboxes[:, :-1])))
-    )
+        (all_rois, np.hstack((zeros, gt_easyboxes[:, :-1]))))
 
     # Sanity check: single batch only
     assert np.all(all_rois[:, 0] == 0), \

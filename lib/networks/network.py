@@ -313,13 +313,13 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def smooth_l1_dist(self, predicts, targets, th = 1, name='smooth_l1_dist'):
+    def smooth_l1_dist(self, predicts, targets, th = 0.1, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
             deltas = predicts - targets
             deltas_abs = tf.abs(deltas)
             smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
             return tf.square(deltas) * 0.5 * smoothL1_sign + \
-                        (deltas_abs - 0.5) * tf.abs(smoothL1_sign - 1)
+                        (deltas_abs - th*th*0.5) * tf.abs(smoothL1_sign - 1)
 
 
 
@@ -349,9 +349,8 @@ class Network(object):
         # smooth l1 loss, normalized by locations
         rpn_loss_box = tf.reduce_mean(tf.reduce_sum(\
             self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
-            reduction_indices=[1])\
-        )
-        rpn_loss_box = rpn_loss_box * 10
+            reduction_indices=[1])) * 10
+
 
         ############# R-CNN
         # classification loss
@@ -362,15 +361,20 @@ class Network(object):
 
         # bounding box regression L1 loss
         # shape is batch * (nclass * 4)
-        bbox_pred = self.get_output('bbox_pred') # (HxW, Ax5)
-        bbox_targets = self.get_output('roi-data')[2] # (HxW, Ax5)
+        bbox_pred = self.get_output('bbox_pred') # (HxW, Ax4)
+        bbox_targets = self.get_output('roi-data')[2] # (HxW, Ax4)
         # each element is {0, 1}, represents background (0), objects (1)
         bbox_inside_weights = self.get_output('roi-data')[3] # (HxW, Ax5)
         bbox_outside_weights = self.get_output('roi-data')[4] # (HxW, Ax5)
+
+        deltas = bbox_inside_weights * self.smooth_l1_dist(bbox_pred, bbox_targets)
+
+        keeps_rois = tf.where(tf.equal(label, -1))
+        deltas = tf.gather(tf.reshape(deltas, [-1, 4]), keeps_rois)
+
         # l1 distance
-        loss_box = tf.reduce_mean(tf.reduce_sum(\
-            bbox_outside_weights * bbox_inside_weights * self.smooth_l1_dist(bbox_pred, bbox_targets),\
-            reduction_indices=[1]))
+        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 10
+        loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
