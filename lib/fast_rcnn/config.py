@@ -139,7 +139,7 @@ __C.TRAIN.ASPECT_GROUPING = True
 __C.TRAIN.DONTCARE_AREA_INTERSECTION_HI = 0.5
 __C.TRAIN.PRECLUDE_HARD_SAMPLES = True
 # Use RPN to detect objects
-__C.TRAIN.HAS_RPN = False
+__C.TRAIN.HAS_RPN = True
 # IOU >= thresh: positive example
 __C.TRAIN.RPN_POSITIVE_OVERLAP = 0.7
 # IOU < thresh: negative example

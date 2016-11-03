@@ -131,7 +131,6 @@ def _sample_rois(all_rois, gt_boxes, gt_ishard, dontcare_areas, fg_rois_per_imag
             #         print 'rois: '
             #         print all_rois[ignore_inds]
 
-    ignore_inds = np.empty(shape=(0), dtype=int)
     # preclude dontcare areas
     if dontcare_areas is not None and dontcare_areas.shape[0] > 0:
         # intersec shape is D x R
