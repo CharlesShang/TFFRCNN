@@ -28,6 +28,12 @@ case $DATASET in
     TEST_IMDB="voc_2007_test"
     PT_DIR="pascal_voc"
     ITERS=70000
+    CFG="experiments/cfgs/faster_rcnn_end2end.yml"
+    ;;
+  kittivoc)
+    TRAIN_IMDB="kittivoc_train"
+    ITERS=100000
+    CFG="experiments/cfgs/faster_rcnn_kitti.yml"
     ;;
   coco)
     # This is a very long and slow training schedule
@@ -43,7 +49,7 @@ case $DATASET in
     exit
     ;;
 esac
-LOG="experiments/logs/faster_rcnn_end2end_${NET}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y-%m-%d_%H-%M-%S'`"
+LOG="experiments/logs/faster_rcnn_end2end_${NET}_${EXTRA_ARGS_SLUG}.txt.`date +'%Y_%m_%d_%H_%M_%S'`"
 exec &> >(tee -a "$LOG")
 echo Logging output to "$LOG"
 
@@ -51,7 +57,7 @@ time python ./faster_rcnn/train_net.py --gpu ${GPU_ID} \
   --weights data/pretrain_model/VGG_imagenet.npy \
   --imdb ${TRAIN_IMDB} \
   --iters ${ITERS} \
-  --cfg experiments/cfgs/faster_rcnn_end2end.yml \
+  --cfg ${CFG} \
   --network VGGnet_train \
   ${EXTRA_ARGS}
 
