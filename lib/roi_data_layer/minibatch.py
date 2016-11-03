@@ -48,7 +48,7 @@ def get_minibatch(roidb, num_classes):
             if 'gt_ishard' in roidb[0] else np.zeros(gt_inds.size, dtype=int)
         # blobs['gt_ishard'] = roidb[0]['gt_ishard'][gt_inds]
         blobs['dontcare_areas'] = roidb[0]['dontcare_areas'] * im_scales[0] \
-            if 'dontcare_areas' in roidb[0] else None
+            if 'dontcare_areas' in roidb[0] else np.zeros([0, 4], dtype=float)
         blobs['im_info'] = np.array(
             [[im_blob.shape[1], im_blob.shape[2], im_scales[0]]],
             dtype=np.float32)
