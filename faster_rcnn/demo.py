@@ -129,7 +129,8 @@ if __name__ == '__main__':
     for i in xrange(2):
         _, _ = im_detect(sess, net, im)
 
-    im_names = glob.glob(os.path.join(cfg.DATA_DIR, 'demo', '*.jpg'))
+    im_names = glob.glob(os.path.join(cfg.DATA_DIR, 'demo', '*.png')) + \
+               glob.glob(os.path.join(cfg.DATA_DIR, 'demo', '*.jpg'))
 
     for im_name in im_names:
         print '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
