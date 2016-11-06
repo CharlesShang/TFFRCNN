@@ -4,6 +4,7 @@ import numpy as np
 import os, sys, cv2
 import argparse
 import os.path as osp
+import glob
 
 this_dir = osp.dirname(__file__)
 print(this_dir)
@@ -58,8 +59,7 @@ def demo(sess, net, image_name):
     """Detect object classes in an image using pre-computed object proposals."""
 
     # Load the demo image
-    im_file = os.path.join(cfg.DATA_DIR, 'demo', image_name)
-    im = cv2.imread(im_file)
+    im = cv2.imread(image_name)
 
     # Detect all object classes and regress object bounds
     timer = Timer()
@@ -119,23 +119,21 @@ if __name__ == '__main__':
     # load network
     net = get_network(args.demo_net)
     # load model
+    print ('Loading network {:s}... '.format(args.demo_net)),
     saver = tf.train.Saver()
     saver.restore(sess, args.model)
-    # sess.run(tf.initialize_all_variables())
-
-    print '\n\nLoaded network {:s}'.format(args.model)
+    print (' done.')
 
     # Warmup on a dummy image
     im = 128 * np.ones((300, 300, 3), dtype=np.uint8)
     for i in xrange(2):
         _, _ = im_detect(sess, net, im)
 
-    im_names = ['000456.jpg', '000542.jpg', '001150.jpg',
-                '001763.jpg', '004545.jpg']
+    im_names = glob.glob(os.path.join(cfg.DATA_DIR, 'demo', '*.jpg'))
 
     for im_name in im_names:
         print '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-        print 'Demo for data/demo/{}'.format(im_name)
+        print 'Demo for {:s}'.format(im_name)
         demo(sess, net, im_name)
 
     plt.show()
