@@ -242,8 +242,7 @@ class SolverWrapper(object):
                 fetch_list += []
                 rpn_loss_cls_value, rpn_loss_box_value, loss_cls_value, loss_box_value, \
                 summary_str, _, \
-                cls_prob, bbox_pred, rois, \
-                        =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
+                cls_prob, bbox_pred, rois =  sess.run(fetches=fetch_list, feed_dict=feed_dict)
 
             self.writer.add_summary(summary=summary_str, global_step=global_step.eval())
 
@@ -257,8 +256,9 @@ class SolverWrapper(object):
                 ori_im = _draw_gt_to_image(ori_im, blobs['gt_boxes'], blobs['gt_ishard'])
                 ori_im = _draw_dontcare_to_image(ori_im, blobs['dontcare_areas'])
                 # draw rects
+                # print 'rois:', rois.shape[0]
                 boxes, scores = _process_boxes_scores(cls_prob, bbox_pred, rois, blobs['im_info'][0][2], ori_im.shape)
-                res = nms_wrapper(scores, boxes)
+                res = nms_wrapper(scores, boxes, threshold=0.7)
                 image = cv2.cvtColor(_draw_boxes_to_image(ori_im, res), cv2.COLOR_BGR2RGB)
                 log_image_name_str = ('%06d_' % iter ) + blobs['im_name']
                 log_image_summary_op = \
@@ -323,14 +323,16 @@ def _process_boxes_scores(cls_prob, bbox_pred, rois, im_scale, im_shape):
     """
     assert rois.shape[0] == bbox_pred.shape[0],\
         'rois and bbox_pred must have the same shape'
-    boxes = rois[:, 1:5] / im_scale
+    boxes = rois[:, 1:5]
     scores = cls_prob
     if cfg.TEST.BBOX_REG:
         pred_boxes = bbox_transform_inv(boxes, deltas=bbox_pred)
         pred_boxes = clip_boxes(pred_boxes, im_shape)
     else:
         # Simply repeat the boxes, once for each class
-        boxes = np.tile(boxes, (1, scores.shape[1]))
+        # boxes = np.tile(boxes, (1, scores.shape[1]))
+
+        pred_boxes = clip_boxes(boxes, im_shape)
     return pred_boxes, scores
 
 def _draw_boxes_to_image(im, res):
