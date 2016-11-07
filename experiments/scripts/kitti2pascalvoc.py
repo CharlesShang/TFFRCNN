@@ -7,7 +7,9 @@ import xml.etree.ElementTree as ET
 import shutil
 import numpy as np
 
-def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestrian', 'car', 'cyclist')):
+def generate_xml(name, lines, img_size = (370, 1224, 3), \
+                 class_sets = ('pedestrian', 'car', 'cyclist'), \
+                 doncateothers = True):
     """
     Write annotations into voc xml format.
     Examples:
@@ -75,28 +77,30 @@ def generate_xml(name, lines, img_size = (370, 1224, 3), class_sets = ('pedestri
     for line in lines:
         splitted_line = line.strip().lower().split()
         cls = splitted_line[0].lower()
-        if cls in class_sets:
-            obj = append_xml_node_attr('object', parent=annotation)
-            occlusion = int(float(splitted_line[2]))
-            x1, y1, x2, y2 = int(float(splitted_line[4]) + 1), int(float(splitted_line[5]) + 1), \
-                             int(float(splitted_line[6]) + 1), int(float(splitted_line[7]) + 1)
-            truncation = float(splitted_line[1])
-            difficult = 1 if _is_hard(cls, truncation, occlusion, x1, y1, x2, y2) else 0
-            truncted = 0 if truncation < 0.5 else 1
+        if not doncateothers and cls not in class_sets:
+            continue
+        cls = 'dontcare' if cls not in class_sets else cls
+        obj = append_xml_node_attr('object', parent=annotation)
+        occlusion = int(float(splitted_line[2]))
+        x1, y1, x2, y2 = int(float(splitted_line[4]) + 1), int(float(splitted_line[5]) + 1), \
+                         int(float(splitted_line[6]) + 1), int(float(splitted_line[7]) + 1)
+        truncation = float(splitted_line[1])
+        difficult = 1 if _is_hard(cls, truncation, occlusion, x1, y1, x2, y2) else 0
+        truncted = 0 if truncation < 0.5 else 1
 
-            append_xml_node_attr('name', parent=obj, text=cls)
-            append_xml_node_attr('pose', parent=obj, text='Left')
-            append_xml_node_attr('truncated', parent=obj, text=str(truncted))
-            append_xml_node_attr('difficult', parent=obj, text=str(int(difficult)))
-            bb = append_xml_node_attr('bndbox', parent=obj)
-            append_xml_node_attr('xmin', parent=bb, text=str(x1))
-            append_xml_node_attr('ymin', parent=bb, text=str(y1))
-            append_xml_node_attr('xmax', parent=bb, text=str(x2))
-            append_xml_node_attr('ymax', parent=bb, text=str(y2))
+        append_xml_node_attr('name', parent=obj, text=cls)
+        append_xml_node_attr('pose', parent=obj, text='Left')
+        append_xml_node_attr('truncated', parent=obj, text=str(truncted))
+        append_xml_node_attr('difficult', parent=obj, text=str(int(difficult)))
+        bb = append_xml_node_attr('bndbox', parent=obj)
+        append_xml_node_attr('xmin', parent=bb, text=str(x1))
+        append_xml_node_attr('ymin', parent=bb, text=str(y1))
+        append_xml_node_attr('xmax', parent=bb, text=str(x2))
+        append_xml_node_attr('ymax', parent=bb, text=str(y2))
 
-            o = {'class': cls, 'box': np.asarray([x1, y1, x2, y2], dtype=float), \
-                 'truncation': truncation, 'difficult': difficult, 'occlusion': occlusion}
-            objs.append(o)
+        o = {'class': cls, 'box': np.asarray([x1, y1, x2, y2], dtype=float), \
+             'truncation': truncation, 'difficult': difficult, 'occlusion': occlusion}
+        objs.append(o)
 
     return  doc, objs
 
@@ -130,6 +134,9 @@ def parse_args():
     parser.add_argument('--draw', dest='draw',
                         help='draw rects on images',
                         default=0, type=int)
+    parser.add_argument('--dontcareothers', dest='dontcareothers',
+                        help='ignore other categories, add them to dontcare rsgions',
+                        default=1, type=int)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -198,14 +205,16 @@ if __name__ == '__main__':
     _outdir = args.outdir
     _draw = bool(args.draw)
     _dest_label_dir, _dest_img_dir, _dest_set_dir = build_voc_dirs(_outdir)
+    _doncateothers = bool(args.dontcareothers)
 
     # for kitti only provides training labels
     for dset in ['train']:
 
         _labeldir = os.path.join(_kittidir, 'training', 'label_2')
         _imagedir = os.path.join(_kittidir, 'training', 'image_2')
-
-        # class_sets = ('pedestrian', 'cyclist', 'car', 'person_sitting', 'van', 'truck', 'tram', 'misc', 'dontcare')
+        """
+        class_sets = ('pedestrian', 'cyclist', 'car', 'person_sitting', 'van', 'truck', 'tram', 'misc', 'dontcare')
+        """
         class_sets = ('pedestrian', 'cyclist', 'car', 'dontcare')
         class_sets_dict = dict((k, i) for i, k in enumerate(class_sets))
         allclasses = {}
@@ -223,7 +232,7 @@ if __name__ == '__main__':
             img = cv2.imread(img_file)
             img_size = img.shape
 
-            doc, objs = generate_xml(stem, lines, img_size, class_sets=class_sets)
+            doc, objs = generate_xml(stem, lines, img_size, class_sets=class_sets, doncateothers=_doncateothers)
             if _draw:
                 _draw_on_image(img, objs, class_sets_dict)
 

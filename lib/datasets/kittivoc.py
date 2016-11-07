@@ -48,6 +48,7 @@ class kittivoc(imdb):
         self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
         self._comp_id = 'comp4'
+        self._year = ''
         # PASCAL specific config options
         self.config = {'cleanup'     : True,
                        'use_salt'    : True,
@@ -280,11 +281,12 @@ class kittivoc(imdb):
         return comp_id
 
     def _get_voc_results_file_template(self):
-        # VOCdevkit/results/KITTIVOC/Main/<comp_id>_det_test_aeroplane.txt
+        # VOCdevkit/results/VOC2007/Main/<comp_id>_det_test_aeroplane.txt
         filename = self._get_comp_id() + '_det_' + self._image_set + '_{:s}.txt'
-        path = os.path.join(
-            self._devkit_path,
-            'results', 'KITTIVOC', 'Main', filename)
+        filedir = os.path.join(self._devkit_path, 'results', 'KITTI', 'Main')
+        if not os.path.exists(filedir):
+            os.makedirs(filedir)
+        path = os.path.join(filedir, filename)
         return path
 
     def _write_voc_results_file(self, all_boxes):
