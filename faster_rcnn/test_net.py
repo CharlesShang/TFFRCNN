@@ -8,7 +8,9 @@
 # --------------------------------------------------------
 
 """Test a Fast R-CNN network on an image database."""
-
+import sys,os
+this_dir = os.path.dirname(__file__)
+sys.path.insert(0, this_dir + '/..')
 # import _init_paths
 from lib.fast_rcnn.test import test_net
 from lib.fast_rcnn.config import cfg, cfg_from_file
@@ -16,7 +18,7 @@ from lib.datasets.factory import get_imdb
 from lib.networks.factory import get_network
 import argparse
 import pprint
-import time, os, sys
+import time
 import tensorflow as tf
 
 def parse_args():
