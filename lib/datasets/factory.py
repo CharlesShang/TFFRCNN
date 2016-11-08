@@ -37,16 +37,16 @@ for year in ['2007', '2012']:
 
 
 # Set up kittivoc
-    for split in ['train', 'val', 'trainval']:
+    for split in ['train', 'val', 'trainval', 'test']:
         name = 'kittivoc_{}'.format(split)
         print name
         __sets[name] = (lambda split=split: kittivoc(split))
 
-# KITTI dataset
-for split in ['train', 'val', 'trainval', 'test']:
-    name = 'kitti_{}'.format(split)
-    print name
-    __sets[name] = (lambda split=split: kitti(split))
+# # KITTI dataset
+# for split in ['train', 'val', 'trainval', 'test']:
+#     name = 'kitti_{}'.format(split)
+#     print name
+#     __sets[name] = (lambda split=split: kitti(split))
 
 # Set up coco_2014_<split>
 for year in ['2014']:

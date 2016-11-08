@@ -1,5 +1,5 @@
 EXP_DIR: faster_rcnn_kitti
-LOG_DIR: faster_rcnn_kitti_debug
+LOG_DIR: faster_rcnn_kitti2
 IS_MULTISCALE: False
 NET_NAME: VGGnet
 ANCHOR_SCALES: [4, 8, 16]

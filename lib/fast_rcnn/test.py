@@ -272,6 +272,11 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
     if not cfg.TEST.HAS_RPN:
         roidb = imdb.roidb
 
+    det_file = os.path.join(output_dir, 'detections.pkl')
+    # if os.path.exists(det_file):
+    #     with open(det_file, 'rb') as f:
+    #         all_boxes = cPickle.load(f)
+
     for i in xrange(num_images):
         # filter out any ground truth boxes
         if cfg.TEST.HAS_RPN:
@@ -324,7 +329,7 @@ def test_net(sess, net, imdb, weights_filename , max_per_image=300, thresh=0.05,
               .format(i + 1, num_images, _t['im_detect'].average_time,
                       _t['misc'].average_time)
 
-    det_file = os.path.join(output_dir, 'detections.pkl')
+
     with open(det_file, 'wb') as f:
         cPickle.dump(all_boxes, f, cPickle.HIGHEST_PROTOCOL)
 
