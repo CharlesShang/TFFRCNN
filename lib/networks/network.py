@@ -373,7 +373,7 @@ class Network(object):
         deltas = tf.gather(tf.reshape(deltas, [-1, 4]), keeps_rois)
 
         # l1 distance
-        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 10
+        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 20
         loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
