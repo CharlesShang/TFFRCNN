@@ -37,11 +37,11 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
     ----------
     Returns
     ----------
-    rpn_labels : (A, 1), for each anchor, 0 denotes bg, 1 fg, -1 dontcare
-    rpn_bbox_targets: (A, 4), distances of the anchors to the gt_boxes(may contains some transform)
+    rpn_labels : (HxWxA, 1), for each anchor, 0 denotes bg, 1 fg, -1 dontcare
+    rpn_bbox_targets: (HxWxA, 4), distances of the anchors to the gt_boxes(may contains some transform)
                             that are the regression objectives
-    rpn_bbox_inside_weights: (A, 4) weights of each boxes, mainly accepts hyper param in cfg
-    rpn_bbox_outside_weights: (A, 4) used to balance the fg/bg,
+    rpn_bbox_inside_weights: (HxWxA, 4) weights of each boxes, mainly accepts hyper param in cfg
+    rpn_bbox_outside_weights: (HxWxA, 4) used to balance the fg/bg,
                             beacuse the numbers of bgs and fgs mays significiantly different
     """
     _anchors = generate_anchors(scales=np.array(anchor_scales))
