@@ -313,13 +313,12 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def smooth_l1_dist(self, predicts, targets, th = 0.1, name='smooth_l1_dist'):
+    def smooth_l1_dist(self, deltas, inside_weights, th = 1, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
-            deltas = predicts - targets
             deltas_abs = tf.abs(deltas)
             smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
-            return tf.square(deltas) * 0.5 * smoothL1_sign + \
-                        (deltas_abs - th*th*0.5) * tf.abs(smoothL1_sign - 1)
+            return tf.square(inside_weights * deltas * 3) * 0.5 * smoothL1_sign + \
+                        (deltas_abs - 0.5/9) * tf.abs(smoothL1_sign - 1)
 
 
 
@@ -335,46 +334,64 @@ class Network(object):
         rpn_label = tf.gather(rpn_label, keeps_cls)
         rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label))
 
-        # bounding box regression L1 loss
-        # transpose to 1 * height * width * (anchor_nums * 4)
-        rpn_bbox_pred = tf.reshape(self.get_output('rpn_bbox_pred'), [-1, 4])
-        rpn_bbox_targets = tf.reshape(self.get_output('rpn-data')[1],[-1, 4])
-        rpn_bbox_inside_weights = tf.reshape(self.get_output('rpn-data')[2], [-1, 4])
-        rpn_bbox_outside_weights = tf.reshape(self.get_output('rpn-data')[3],[-1, 4]) # (1, H, W, A * 4)
+        # # 1. my own
+        # # bounding box regression L1 loss
+        # # transpose to 1 * height * width * (anchor_nums * 4)
+        # rpn_bbox_pred = tf.reshape(self.get_output('rpn_bbox_pred'), [-1, 4])
+        # rpn_bbox_targets = tf.reshape(self.get_output('rpn-data')[1],[-1, 4])
+        # rpn_bbox_inside_weights = tf.reshape(self.get_output('rpn-data')[2], [-1, 4])
+        # rpn_bbox_outside_weights = tf.reshape(self.get_output('rpn-data')[3],[-1, 4]) # (1 x H x W x A, 4)
+        #
+        # rpn_bbox_pred = tf.gather(rpn_bbox_pred, keeps_rgs)
+        # rpn_bbox_targets = tf.gather(rpn_bbox_targets, keeps_rgs)
+        # rpn_bbox_inside_weights = tf.gather(rpn_bbox_inside_weights, keeps_rgs)
+        #
+        # # smooth l1 loss, normalized by locations
+        # rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
+        #     rpn_bbox_outside_weights * rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
+        #     reduction_indices=[1])) * 10
 
-        rpn_bbox_pred = tf.gather(rpn_bbox_pred, keeps_rgs)
-        rpn_bbox_targets = tf.gather(rpn_bbox_targets, keeps_rgs)
-        rpn_bbox_inside_weights = tf.gather(rpn_bbox_inside_weights, keeps_rgs)
+        # 2. ori
+        rpn_bbox_pred = self.get_output('rpn_bbox_pred')
+        rpn_bbox_targets = self.get_output('rpn-data')[1]
+        rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
+        rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
 
         # smooth l1 loss, normalized by locations
         rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
-            rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred, rpn_bbox_targets),\
-            reduction_indices=[1])) * 10
+            rpn_bbox_outside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets, rpn_bbox_inside_weights),\
+            reduction_indices=[1, 2])) * 10
+
 
 
         ############# R-CNN
         # classification loss
         # shape is batch * nclass
         cls_score = self.get_output('cls_score')
-        label = tf.reshape(self.get_output('roi-data')[1], [-1]) # (HxWxA)
+        label = tf.reshape(self.get_output('roi-data')[1], [-1]) # (R)
         cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(cls_score, label))
 
         # bounding box regression L1 loss
         # shape is batch * (nclass * 4)
-        bbox_pred = self.get_output('bbox_pred') # (HxW, Ax4)
-        bbox_targets = self.get_output('roi-data')[2] # (HxW, Ax4)
+        bbox_pred = self.get_output('bbox_pred') # (R, Nx4)
+        bbox_targets = self.get_output('roi-data')[2] # (R, Nx4)
         # each element is {0, 1}, represents background (0), objects (1)
-        bbox_inside_weights = self.get_output('roi-data')[3] # (HxW, Ax5)
-        bbox_outside_weights = self.get_output('roi-data')[4] # (HxW, Ax5)
+        bbox_inside_weights = self.get_output('roi-data')[3] # (R, Nx5)
+        bbox_outside_weights = self.get_output('roi-data')[4] # (R, Nx5)
 
-        deltas = bbox_inside_weights * self.smooth_l1_dist(bbox_pred, bbox_targets)
+        # 1. my own
+        # deltas = bbox_inside_weights * self.smooth_l1_dist(bbox_pred - bbox_targets, bbox_inside_weights)
+        #
+        # keeps_rois = tf.where(tf.not_equal(label, 0))
+        # deltas = tf.gather(tf.reshape(deltas, [-1, 4]), keeps_rois)
+        #
+        # # l1 distance
+        # loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 20
+        # loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
-        keeps_rois = tf.where(tf.not_equal(label, 0))
-        deltas = tf.gather(tf.reshape(deltas, [-1, 4]), keeps_rois)
-
-        # l1 distance
-        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 20
-        loss_box = tf.clip_by_value(loss_box, 0.0, 1)
+        # 2. ori
+        deltas = bbox_outside_weights * bbox_inside_weights * (bbox_pred - bbox_targets)
+        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
