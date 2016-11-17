@@ -390,7 +390,7 @@ class Network(object):
         # loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
         # 2. ori
-        deltas = bbox_outside_weights * bbox_inside_weights * (bbox_pred - bbox_targets)
+        deltas = bbox_outside_weights * bbox_inside_weights * tf.abs(bbox_pred - bbox_targets)
         loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
