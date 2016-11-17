@@ -40,17 +40,17 @@ class VGGnet_testold(Network):
 
         (self.feed('conv5_3')
              .conv(3,3,512,1,1,name='rpn_conv/3x3')
-             .conv(1,1,len(anchor_scales)*3*2,1,1,padding='VALID',relu = False,name='rpn_cls_score'))
+             .conv(1,1,len(anchor_scales)*3*2,1,1,padding='VALID',relu = False,name='rpn_cls_score')) # (1, H, W, A x 2)
 
         (self.feed('rpn_conv/3x3')
              .conv(1,1,len(anchor_scales)*3*4,1,1,padding='VALID',relu = False,name='rpn_bbox_pred'))
 
         (self.feed('rpn_cls_score')
-             .reshape_layer(2,name = 'rpn_cls_score_reshape')
-             .softmax(name='rpn_cls_prob'))
+             .reshape_layer(2,name = 'rpn_cls_score_reshape') # (1, AxH, W, 2)
+             .softmax(name='rpn_cls_prob')) # (1, AxH, W, 2)
 
         (self.feed('rpn_cls_prob')
-             .reshape_layer(len(anchor_scales)*3*2,name = 'rpn_cls_prob_reshape'))
+             .reshape_layer(len(anchor_scales)*3*2,name = 'rpn_cls_prob_reshape')) # (1, H, W, 2xA)!!
 
         (self.feed('rpn_cls_prob_reshape','rpn_bbox_pred','im_info')
              .proposal_layer(_feat_stride, anchor_scales, 'TEST', name = 'rois'))
