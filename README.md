@@ -1,6 +1,6 @@
 # TFFRCNN
 
-This is an experimental Tensorflow implementation of Faster RCNN, mainly based on the work of [smallcorgi](https://github.com/smallcorgi/Faster-RCNN_TF) and [rbgirshick](https://github.com/rbgirshick/py-faster-rcnn). I have re-organized the libraries under `lib` path, making each of python modules independent to each other, so you can understand, re-write the code easily.
+This is an experimental **T**ensor **F**low implementation of **F**aster **RCNN** (**TFFRCNN**), mainly based on the work of [smallcorgi](https://github.com/smallcorgi/Faster-RCNN_TF) and [rbgirshick](https://github.com/rbgirshick/py-faster-rcnn). I have re-organized the libraries under `lib` path, making each of python modules independent to each other, so you can understand, re-write the code easily.
 
 For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](http://arxiv.org/pdf/1506.01497v3.pdf) by Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun.
 
