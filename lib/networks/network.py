@@ -213,9 +213,9 @@ class Network(object):
         input_shape = tf.shape(input)
         if name == 'rpn_cls_prob_reshape':
             #
-            # transpose: (1, H, W, A x 2) -> (1, A x 2, H, W)
-            # reshape: (1, 2, A x H, W)
-            # transpose: -> (1, 9H, W, 2)
+            # transpose: (1, AxH, W, 2) -> (1, 2, AxH, W)
+            # reshape: (1, 2xA, H, W)
+            # transpose: -> (1, H, W, 2xA)
              return tf.transpose(tf.reshape(tf.transpose(input,[0,3,1,2]),
                                             [   input_shape[0],
                                                 int(d),

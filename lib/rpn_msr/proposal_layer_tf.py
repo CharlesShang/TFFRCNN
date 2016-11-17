@@ -28,6 +28,7 @@ def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_
     Parameters
     ----------
     rpn_cls_prob_reshape: (1 , H , W , Ax2) outputs of RPN, prob of bg or fg
+                         NOTICE: the old version is ordered by (1, H, W, 2, A) !!!!
     rpn_bbox_pred: (1 , H , W , Ax4), rgs boxes output of RPN
     im_info: a list of [image_height, image_width, scale_ratios]
     cfg_key: 'TRAIN' or 'TEST'
@@ -78,6 +79,11 @@ def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_
     # (1, H, W, A)
     scores = np.reshape(np.reshape(rpn_cls_prob_reshape, [1, height, width, _num_anchors, 2])[:,:,:,:,1],
                         [1, height, width, _num_anchors])
+
+    # TODO: NOTICE: the old version is ordered by (1, H, W, 2, A) !!!!
+    # TODO: if you use the old trained model, VGGnet_fast_rcnn_iter_70000.ckpt, uncomment this line
+    # scores = rpn_cls_prob_reshape[:,:,:,_num_anchors:]
+
     bbox_deltas = rpn_bbox_pred
     #im_info = bottom[2].data[0, :]
 
