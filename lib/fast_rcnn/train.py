@@ -132,12 +132,17 @@ class SolverWrapper(object):
             opt = tf.train.MomentumOptimizer(lr, momentum)
 
         global_step = tf.Variable(0, trainable=False)
-        tvars = tf.trainable_variables()
-        grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
-        train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
+        with_clip = False
+        if with_clip:
+            tvars = tf.trainable_variables()
+            grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
+            train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
+        else:
+            train_op = opt.minimize(loss, global_step=global_step)
 
         # intialize variables
         sess.run(tf.initialize_all_variables())
+        restore_iter = 0
 
         # load vgg16
         if self.pretrained_model is not None and not restore:
@@ -154,6 +159,9 @@ class SolverWrapper(object):
                 ckpt = tf.train.get_checkpoint_state(self.output_dir)
                 print 'Restoring from {}...'.format(ckpt.model_checkpoint_path),
                 self.saver.restore(sess, ckpt.model_checkpoint_path)
+                stem = os.path.splitext(os.path.basename(ckpt.model_checkpoint_path))[0]
+                restore_iter = int(stem.split('_')[-1])
+                sess.run(global_step.assign(restore_iter))
                 print 'done'
             except:
                 raise 'Check your pretrained {:s}'.format(ckpt.model_checkpoint_path)
@@ -161,7 +169,7 @@ class SolverWrapper(object):
         last_snapshot_iter = -1
         timer = Timer()
         # for iter in range(max_iters):
-        for iter in range(max_iters):
+        for iter in range(restore_iter, max_iters):
             # learning rate
             if iter >= cfg.TRAIN.STEPSIZE:
                 sess.run(tf.assign(lr, cfg.TRAIN.LEARNING_RATE * cfg.TRAIN.GAMMA))
