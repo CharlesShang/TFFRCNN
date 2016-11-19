@@ -362,7 +362,6 @@ class Network(object):
             rpn_bbox_outside_weights * rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets),\
             reduction_indices=[1, 2])) * 10
 
-        
         ############# R-CNN
         # classification loss
         # shape is batch * nclass
