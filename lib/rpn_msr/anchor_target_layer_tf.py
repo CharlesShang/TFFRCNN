@@ -216,9 +216,9 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
         assert ((cfg.TRAIN.RPN_POSITIVE_WEIGHT > 0) &
                 (cfg.TRAIN.RPN_POSITIVE_WEIGHT < 1))
         positive_weights = (cfg.TRAIN.RPN_POSITIVE_WEIGHT /
-                            np.max(np.sum(labels == 1), 1))
+                            (np.sum(labels == 1)) + 1)
         negative_weights = ((1.0 - cfg.TRAIN.RPN_POSITIVE_WEIGHT) /
-                            np.max(np.sum(labels == 0), 1))
+                            (np.sum(labels == 0)) + 1)
     bbox_outside_weights[labels == 1, :] = positive_weights
     bbox_outside_weights[labels == 0, :] = negative_weights
 
