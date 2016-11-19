@@ -313,11 +313,11 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def smooth_l1_dist(self, deltas, inside_weights, th = 1, name='smooth_l1_dist'):
+    def smooth_l1_dist(self, deltas, th = 1, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
             deltas_abs = tf.abs(deltas)
             smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
-            return tf.square(inside_weights * deltas * 3) * 0.5 * smoothL1_sign + \
+            return tf.square(deltas * 3) * 0.5 * smoothL1_sign + \
                         (deltas_abs - 0.5/9) * tf.abs(smoothL1_sign - 1)
 
 
@@ -359,11 +359,10 @@ class Network(object):
 
         # smooth l1 loss, normalized by locations
         rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
-            rpn_bbox_outside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets, rpn_bbox_inside_weights),\
+            rpn_bbox_outside_weights * rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets),\
             reduction_indices=[1, 2])) * 10
 
-
-
+        
         ############# R-CNN
         # classification loss
         # shape is batch * nclass
