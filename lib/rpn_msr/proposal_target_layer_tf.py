@@ -230,7 +230,7 @@ def _compute_targets(ex_rois, gt_rois, labels):
             (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
 
 def _jitter_gt_boxes(gt_boxes, jitter=0.05):
-    """ jitter the gtboxes, before add them into rois, to be more robust for cls and rgs
+    """ jitter the gtboxes, before adding them into rois, to be more robust for cls and rgs
     gt_boxes: (G, 5) [x1 ,y1 ,x2, y2, class] int
     """
     jittered_boxes = gt_boxes.copy()
