@@ -170,16 +170,14 @@ class SolverWrapper(object):
         timer = Timer()
         # for iter in range(max_iters):
         for iter in range(restore_iter, max_iters):
+            timer.tic()
+
             # learning rate
-            if iter >= cfg.TRAIN.STEPSIZE:
-                sess.run(tf.assign(lr, cfg.TRAIN.LEARNING_RATE * cfg.TRAIN.GAMMA))
-            else:
-                sess.run(tf.assign(lr, cfg.TRAIN.LEARNING_RATE))
+            if iter != 0 and iter % cfg.TRAIN.STEPSIZE == 0:
+                sess.run(tf.assign(lr, lr.eval() * cfg.TRAIN.GAMMA))
                 # sess.run(tf.assign(lr, 0.0))
 
             # get one batch
-            timer.tic()
-
             blobs = data_layer.forward()
 
             if (iter + 1) % (cfg.TRAIN.DISPLAY) == 0:
