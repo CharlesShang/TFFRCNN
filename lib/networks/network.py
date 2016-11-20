@@ -313,12 +313,12 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def smooth_l1_dist(self, deltas, th = 0.333, name='smooth_l1_dist'):
+    def smooth_l1_dist(self, deltas, sigma2=9.0, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
             deltas_abs = tf.abs(deltas)
-            smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
-            return tf.square(deltas) * 0.5 * smoothL1_sign + \
-                        (deltas_abs - 0.5 * th * th) * tf.abs(smoothL1_sign - 1)
+            smoothL1_sign = tf.cast(tf.less(deltas_abs, 1.0/sigma2), tf.float32)
+            return tf.square(deltas) * 0.5 * sigma2 * smoothL1_sign + \
+                        (deltas_abs - 0.5 / sigma2) * tf.abs(smoothL1_sign - 1)
 
 
 
@@ -329,7 +329,7 @@ class Network(object):
         rpn_label = tf.reshape(self.get_output('rpn-data')[0], [-1])  # shape (HxWxA)
         # ignore_label(-1)
         keeps_cls = tf.where(tf.not_equal(rpn_label, -1))
-        keeps_rgs = tf.where(tf.equal(rpn_label, 1))
+        fg_rgs = tf.equal(rpn_label, 1)
         rpn_cls_score = tf.gather(rpn_cls_score, keeps_cls)
         rpn_label = tf.gather(rpn_label, keeps_cls)
         rpn_cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label))
@@ -358,9 +358,13 @@ class Network(object):
         rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
 
         # smooth l1 loss, normalized by locations
-        rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
-            rpn_bbox_outside_weights * rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets),\
-            reduction_indices=[1,2,3]))
+        # rpn_loss_box = tf.reduce_sum( \
+        #     rpn_bbox_outside_weights * self.smooth_l1_dist( rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets))) / \
+        #                (tf.reduce_sum(tf.cast(fg_rgs, tf.float32)) + 1.0)
+
+        rpn_loss_box = tf.reduce_sum( \
+            rpn_bbox_outside_weights * self.smooth_l1_dist(
+                rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)))
 
         ############# R-CNN
         # classification loss
@@ -368,6 +372,7 @@ class Network(object):
         cls_score = self.get_output('cls_score')
         label = tf.reshape(self.get_output('roi-data')[1], [-1]) # (R)
         cross_entropy = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(cls_score, label))
+        fg_rgs = tf.greater(label, 0)
 
         # bounding box regression L1 loss
         # shape is batch * (nclass * 4)
@@ -388,7 +393,7 @@ class Network(object):
         # loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
         # 2. ori
-        deltas = bbox_outside_weights * bbox_inside_weights * self.smooth_l1_dist(bbox_pred - bbox_targets)
+        deltas = bbox_outside_weights * self.smooth_l1_dist(bbox_inside_weights * (bbox_pred - bbox_targets))
         loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
