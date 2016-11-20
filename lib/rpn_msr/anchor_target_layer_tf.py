@@ -209,9 +209,11 @@ def anchor_target_layer(rpn_cls_score, gt_boxes, gt_ishard, dontcare_areas, im_i
     bbox_outside_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
     if cfg.TRAIN.RPN_POSITIVE_WEIGHT < 0:
         # uniform weighting of examples (given non-uniform sampling)
-        num_examples = np.sum(labels >= 0)
-        positive_weights = np.ones((1, 4)) * 1.0 / num_examples
-        negative_weights = np.ones((1, 4)) * 1.0 / num_examples
+        # num_examples = np.sum(labels >= 0)
+        # positive_weights = np.ones((1, 4)) * 1.0 / num_examples
+        # negative_weights = np.ones((1, 4)) * 1.0 / num_examples
+        positive_weights = np.ones((1, 4)) * 1.0 / ((np.sum(labels == 1)) + 1.0)
+        negative_weights = np.zeros((1, 4))
     else:
         assert ((cfg.TRAIN.RPN_POSITIVE_WEIGHT > 0) &
                 (cfg.TRAIN.RPN_POSITIVE_WEIGHT < 1))

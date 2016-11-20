@@ -313,12 +313,12 @@ class Network(object):
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
 
-    def smooth_l1_dist(self, deltas, th = 1, name='smooth_l1_dist'):
+    def smooth_l1_dist(self, deltas, th = 0.333, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
             deltas_abs = tf.abs(deltas)
             smoothL1_sign = tf.cast(tf.less(deltas_abs, th), tf.float32)
-            return tf.square(deltas * 3) * 0.5 * smoothL1_sign + \
-                        (deltas_abs - 0.5/9) * tf.abs(smoothL1_sign - 1)
+            return tf.square(deltas) * 0.5 * smoothL1_sign + \
+                        (deltas_abs - 0.5 * th * th) * tf.abs(smoothL1_sign - 1)
 
 
 
@@ -360,7 +360,7 @@ class Network(object):
         # smooth l1 loss, normalized by locations
         rpn_loss_box = tf.reduce_mean(tf.reduce_sum( \
             rpn_bbox_outside_weights * rpn_bbox_inside_weights * self.smooth_l1_dist(rpn_bbox_pred - rpn_bbox_targets),\
-            reduction_indices=[1, 2])) * 10
+            reduction_indices=[1,2,3]))
 
         ############# R-CNN
         # classification loss
@@ -388,7 +388,7 @@ class Network(object):
         # loss_box = tf.clip_by_value(loss_box, 0.0, 1)
 
         # 2. ori
-        deltas = bbox_outside_weights * bbox_inside_weights * tf.abs(bbox_pred - bbox_targets)
+        deltas = bbox_outside_weights * bbox_inside_weights * self.smooth_l1_dist(bbox_pred - bbox_targets)
         loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
