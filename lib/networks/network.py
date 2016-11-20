@@ -364,7 +364,7 @@ class Network(object):
 
         rpn_loss_box = tf.reduce_sum( \
             rpn_bbox_outside_weights * self.smooth_l1_dist(
-                rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)))
+                rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets))) * 5
 
         ############# R-CNN
         # classification loss
