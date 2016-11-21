@@ -49,6 +49,7 @@ __C.TRAIN = edict()
 # Adam, Momentum, RMS
 __C.TRAIN.SOLVER = 'Momentum'
 # learning rate
+__C.TRAIN.WEIGHT_DECAY = 0.0005
 __C.TRAIN.LEARNING_RATE = 0.001
 __C.TRAIN.MOMENTUM = 0.9
 __C.TRAIN.GAMMA = 0.1

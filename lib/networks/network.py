@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+from ..fast_rcnn.config import cfg
 from ..roi_pooling_layer import roi_pooling_op as roi_pool_op
 from ..rpn_msr.proposal_layer_tf import proposal_layer as proposal_layer_py
 from ..rpn_msr.anchor_target_layer_tf import anchor_target_layer as anchor_target_layer_py
@@ -82,8 +83,8 @@ class Network(object):
         id = sum(t.startswith(prefix) for t,_ in self.layers.items())+1
         return '%s_%d'%(prefix, id)
 
-    def make_var(self, name, shape, initializer=None, trainable=True):
-        return tf.get_variable(name, shape, initializer=initializer, trainable=trainable)
+    def make_var(self, name, shape, initializer=None, trainable=True, regularizer=None):
+        return tf.get_variable(name, shape, initializer=initializer, trainable=trainable, regularizer=regularizer)
 
     def validate_padding(self, padding):
         assert padding in ('SAME', 'VALID')
@@ -99,7 +100,8 @@ class Network(object):
 
             init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
             init_biases = tf.constant_initializer(0.0)
-            kernel = self.make_var('weights', [k_h, k_w, c_i/group, c_o], init_weights, trainable)
+            kernel = self.make_var('weights', [k_h, k_w, c_i/group, c_o], init_weights, trainable, \
+                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
             biases = self.make_var('biases', [c_o], init_biases, trainable)
 
             if group==1:
@@ -286,7 +288,8 @@ class Network(object):
                 init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
                 init_biases = tf.constant_initializer(0.0)
 
-            weights = self.make_var('weights', [dim, num_out], init_weights, trainable)
+            weights = self.make_var('weights', [dim, num_out], init_weights, trainable, \
+                                    regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
             biases = self.make_var('biases', [num_out], init_biases, trainable)
 
             op = tf.nn.relu_layer if relu else tf.nn.xw_plus_b
@@ -312,6 +315,15 @@ class Network(object):
     @layer
     def dropout(self, input, keep_prob, name):
         return tf.nn.dropout(input, keep_prob, name=name)
+
+    def l2_regularizer(self, weight_decay=0.0005, scope=None):
+        def regularizer(tensor):
+            with tf.op_scope([tensor], scope, 'l2_regularizer'):
+                l2_weight = tf.convert_to_tensor(weight_decay,
+                                       dtype=tensor.dtype.base_dtype,
+                                       name='weight_decay')
+                return tf.mul(l2_weight, tf.nn.l2_loss(tensor), name='value')
+        return regularizer
 
     def smooth_l1_dist(self, deltas, sigma2=9.0, name='smooth_l1_dist'):
         with tf.name_scope(name=name) as scope:
@@ -397,5 +409,10 @@ class Network(object):
         loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
+
+        # add regularizer
+        if cfg.TRAIN.WEIGHT_DECAY > 0:
+            regularization_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+            loss = tf.add_n(loss, regularization_losses)
 
         return loss, cross_entropy, loss_box, rpn_cross_entropy, rpn_loss_box
