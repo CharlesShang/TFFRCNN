@@ -6,4 +6,4 @@ python ./faster_rcnn/train_net.py \
 --iters 100000 \
 --cfg ./experiments/cfgs/faster_rcnn_end2end.yml \
 --network VGGnet_train \
---restore 1
+--restore 0
