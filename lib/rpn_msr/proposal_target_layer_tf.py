@@ -58,9 +58,10 @@ def proposal_target_layer(rpn_rois, gt_boxes, gt_ishard, dontcare_areas, _num_cl
     """
     add the ground-truth to rois will cause zero loss! not good for visuallization
     """
-    zeros = np.zeros((gt_easyboxes.shape[0], 1), dtype=gt_easyboxes.dtype)
-    all_rois = np.vstack(
-        (all_rois, np.hstack((zeros, gt_easyboxes[:, :-1]))))
+    jittered_gt_boxes = _jitter_gt_boxes(gt_easyboxes)
+    zeros = np.zeros((gt_easyboxes.shape[0] * 2, 1), dtype=gt_easyboxes.dtype)
+    all_rois = np.vstack((all_rois, \
+         np.hstack((zeros, np.vstack((gt_easyboxes[:, :-1], jittered_gt_boxes[:, :-1]))))))
 
     # Sanity check: single batch only
     assert np.all(all_rois[:, 0] == 0), \
@@ -227,3 +228,17 @@ def _compute_targets(ex_rois, gt_rois, labels):
                 / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
     return np.hstack(
             (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
+
+def _jitter_gt_boxes(gt_boxes, jitter=0.05):
+    """ jitter the gtboxes, before adding them into rois, to be more robust for cls and rgs
+    gt_boxes: (G, 5) [x1 ,y1 ,x2, y2, class] int
+    """
+    jittered_boxes = gt_boxes.copy()
+    ws = jittered_boxes[:, 2] - jittered_boxes[:, 0] + 1.0
+    hs = jittered_boxes[:, 3] - jittered_boxes[:, 1] + 1.0
+    jitter_offset = int(max(min(np.min(ws), np.min(hs)) * jitter, 5))
+    jitter_ = np.random.randint(-jitter_offset, jitter_offset, \
+                                size = (jittered_boxes.shape[0], 4))
+    jittered_boxes[:, :4] += jitter_
+
+    return jittered_boxes

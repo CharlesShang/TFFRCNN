@@ -121,7 +121,7 @@ def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_
     # transpose to (1, H, W, 4 * A)
     # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
     # in slowest to fastest order
-    bbox_deltas = bbox_deltas.reshape((-1, 4)) #(HxWxKxA, 4)
+    bbox_deltas = bbox_deltas.reshape((-1, 4)) #(HxWxA, 4)
 
     # Same story for the scores:
     #
@@ -142,10 +142,10 @@ def proposal_layer(rpn_cls_prob_reshape, rpn_bbox_pred, im_info, cfg_key, _feat_
     proposals = proposals[keep, :]
     scores = scores[keep]
 
-    # remove irregular boxes, too fat too tall
-    keep = _filter_irregular_boxes(proposals)
-    proposals = proposals[keep, :]
-    scores = scores[keep]
+    # # remove irregular boxes, too fat too tall
+    # keep = _filter_irregular_boxes(proposals)
+    # proposals = proposals[keep, :]
+    # scores = scores[keep]
 
     # 4. sort all (proposal, score) pairs by score from highest to lowest
     # 5. take top pre_nms_topN (e.g. 6000)
