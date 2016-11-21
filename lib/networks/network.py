@@ -406,7 +406,7 @@ class Network(object):
 
         # 2. ori
         deltas = bbox_outside_weights * self.smooth_l1_dist(bbox_inside_weights * (bbox_pred - bbox_targets))
-        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1]))
+        loss_box = tf.reduce_mean(tf.reduce_sum(deltas, reduction_indices=[1])) * 5
 
         loss = cross_entropy + loss_box + rpn_cross_entropy + rpn_loss_box
 
