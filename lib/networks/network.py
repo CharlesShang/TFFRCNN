@@ -413,6 +413,6 @@ class Network(object):
         # add regularizer
         if cfg.TRAIN.WEIGHT_DECAY > 0:
             regularization_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-            loss = tf.add_n(loss, regularization_losses)
+            loss = tf.add_n(regularization_losses) + loss
 
         return loss, cross_entropy, loss_box, rpn_cross_entropy, rpn_loss_box
