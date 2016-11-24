@@ -236,9 +236,11 @@ def _jitter_gt_boxes(gt_boxes, jitter=0.05):
     jittered_boxes = gt_boxes.copy()
     ws = jittered_boxes[:, 2] - jittered_boxes[:, 0] + 1.0
     hs = jittered_boxes[:, 3] - jittered_boxes[:, 1] + 1.0
-    jitter_offset = int(max(min(np.min(ws), np.min(hs)) * jitter, 5))
-    jitter_ = np.random.randint(-jitter_offset, jitter_offset, \
-                                size = (jittered_boxes.shape[0], 4))
-    jittered_boxes[:, :4] += jitter_
+    width_offset = (np.random.rand(jittered_boxes.shape[0], 1) - 0.5) * jitter * ws
+    height_offset = (np.random.rand(jittered_boxes.shape[0], 1) - 0.5) * jitter * hs
+    jittered_boxes[:, 0] += width_offset
+    jittered_boxes[:, 2] += width_offset
+    jittered_boxes[:, 1] += height_offset
+    jittered_boxes[:, 3] += height_offset
 
     return jittered_boxes
