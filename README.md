@@ -50,11 +50,11 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
 
 1. [VGG16 trained on ImageNet](https://drive.google.com/open?id=0ByuDEGFYmWsbNVF5eExySUtMZmM)
 
-2. [VGG16 - TFFRCNN 0.689mAP on VOC07](https://drive.google.com/file/d/0B_xFdh9onPagX0JWRlR0cTZ5OGc/view?usp=sharing).
+2. [VGG16 - TFFRCNN (0.689 mAP on VOC07)](https://drive.google.com/file/d/0B_xFdh9onPagX0JWRlR0cTZ5OGc/view?usp=sharing).
 
-3. [Resnet50 trained on ImageNet]()
+3. [Resnet50 trained on ImageNet](https://drive.google.com/file/d/0B_xFdh9onPagSWU1ZTAxUTZkZTQ/view?usp=sharing)
 
-4. [Resnet50 - TFFRCNN (0.712 mAP on VOC07)]()
+4. [Resnet50 - TFFRCNN (0.712 mAP on VOC07)](https://drive.google.com/file/d/0B_xFdh9onPagbXk1b0FIeDRJaU0/view?usp=sharing)
 
 ### Training on Pascal VOC 2007
 
