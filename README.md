@@ -4,6 +4,13 @@ This is an experimental **T**ensor **F**low implementation of **F**aster **RCNN*
 
 For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](http://arxiv.org/pdf/1506.01497v3.pdf) by Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun.
 
+### What's New
+
+1. Resnet networks
+2. **P**osition **S**ensitive **ROI Pooling** (psroi_pooling), not testing yet
+3. KITTI object detection dataset support
+4. Waiting more advanced hackings
+
 ### Acknowledgments: 
 
 1. [py-faster-rcnn](https://github.com/rbgirshick/py-faster-rcnn)
