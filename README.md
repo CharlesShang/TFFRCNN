@@ -11,6 +11,7 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 - [x] **P**osition **S**ensitive **ROI Pooling** (psroi_pooling), not testing yet
 - [ ] Hard Example Mining
 - [ ] Data Augment
+- [ ] R-FCN
 - [ ] Multi-layer Architecture (HyperNet)
 - [ ] more hacks...
 
