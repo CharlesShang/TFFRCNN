@@ -6,10 +6,11 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 
 ### What's New
 
-1. Resnet networks
-2. **P**osition **S**ensitive **ROI Pooling** (psroi_pooling), not testing yet
-3. KITTI object detection dataset support
-4. Waiting more advanced hackings
+- [x] Resnet networks support
+- [x] KITTI object detection dataset support
+- [x] **P**osition **S**ensitive **ROI Pooling** (psroi_pooling), not testing yet
+- [ ] Hard Example Mining
+- [ ] Data Augment
 
 ### Acknowledgments: 
 
