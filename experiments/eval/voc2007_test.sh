@@ -26,7 +26,7 @@ python ./faster_rcnn/test_net.py \
 
 python ./faster_rcnn/test_net.py \
 --gpu 0 \
---weights ./output/faster_rcnn_end2end_resnet_voc/voc_2007_trainval/VGGnet_fast_rcnn_iter_100000.ckpt \
+--weights ./output/faster_rcnn_end2end_resnet_voc/voc_2007_trainval/Resnet50_iter_110000.ckpt \
 --imdb voc_2007_test \
 --cfg ./experiments/cfgs/faster_rcnn_end2end_resnet.yml \
 --network Resnet50_test

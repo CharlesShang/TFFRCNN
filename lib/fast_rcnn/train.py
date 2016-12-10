@@ -105,7 +105,7 @@ class SolverWrapper(object):
         data_layer = get_data_layer(self.roidb, self.imdb.num_classes)
 
         loss, cross_entropy, loss_box, rpn_cross_entropy, rpn_loss_box = \
-            self.net.build_loss()
+            self.net.build_loss(ohem=cfg.TRAIN.OHEM)
 
         # scalar summary
         tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
@@ -132,10 +132,10 @@ class SolverWrapper(object):
             opt = tf.train.MomentumOptimizer(lr, momentum)
 
         global_step = tf.Variable(0, trainable=False)
-        with_clip = False
+        with_clip = True
         if with_clip:
             tvars = tf.trainable_variables()
-            grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 1.0)
+            grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 10)
             train_op = opt.apply_gradients(zip(grads, tvars), global_step=global_step)
         else:
             train_op = opt.minimize(loss, global_step=global_step)
