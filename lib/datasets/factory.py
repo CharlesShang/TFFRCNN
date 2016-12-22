@@ -29,7 +29,7 @@ def _selective_search_IJCV_top_k(split, year, top_k):
     return imdb
 
 # Set up voc_<year>_<split> using selective search "fast" mode
-for year in ['2007', '2012']:
+for year in ['2007', '2012', '0712']:
     for split in ['train', 'val', 'trainval', 'test']:
         name = 'voc_{}_{}'.format(year, split)
         __sets[name] = (lambda split=split, year=year:
