@@ -420,10 +420,20 @@ class Network(object):
 
 
         if ohem:
-            top_k = tf.minimum(tf.shape(rpn_loss_n)[0] / 2, 300)
-            rpn_loss_n, top_k_indices = tf.nn.top_k(rpn_loss_n, k=top_k, sorted=False)
-            rpn_cross_entropy_n = tf.gather(rpn_cross_entropy_n, top_k_indices)
-            rpn_loss_box_n = tf.gather(rpn_loss_box_n, top_k_indices)
+            # k = tf.minimum(tf.shape(rpn_cross_entropy_n)[0] / 2, 300)
+            # # k = tf.shape(rpn_loss_n)[0] / 2
+            # rpn_loss_n, top_k_indices = tf.nn.top_k(rpn_cross_entropy_n, k=k, sorted=False)
+            # rpn_cross_entropy_n = tf.gather(rpn_cross_entropy_n, top_k_indices)
+            # rpn_loss_box_n = tf.gather(rpn_loss_box_n, top_k_indices)
+
+            # strategy: keeps all the positive samples
+            pos_inds = tf.where(tf.equal(rpn_label, 1))
+            neg_inds = tf.where(tf.equal(rpn_label, 0))
+            rpn_loss_n_pos = tf.gather(rpn_loss_n, pos_inds)
+            rpn_loss_n_neg = tf.gather(rpn_loss_n, neg_inds)
+            top_k = tf.minimum(tf.shape(rpn_loss_n_neg)[0] / 2, 300)
+            rpn_loss_n_neg, top_k_indices = tf.nn.top_k(rpn_loss_n_neg, k=top_k, sorted=False)
+            rpn_loss_box_n = tf.concat(0, (rpn_loss_n_pos, rpn_loss_n_neg))
 
         rpn_loss_box = 100 * tf.reduce_mean(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1)
         # rpn_loss_box = 5 * tf.reduce_sum(rpn_loss_box_n)
@@ -451,12 +461,12 @@ class Network(object):
         loss_n = loss_box_n + cross_entropy_n
         loss_n = tf.reshape(loss_n, [-1])
 
-        if ohem:
-            # top_k = 100
-            top_k = tf.minimum(tf.shape(loss_n)[0] / 2, 500)
-            loss_n, top_k_indices = tf.nn.top_k(loss_n, k=top_k, sorted=False)
-            loss_box_n = tf.gather(loss_box_n, top_k_indices)
-            cross_entropy_n = tf.gather(cross_entropy_n, top_k_indices)
+        # if ohem:
+        #     # top_k = 100
+        #     top_k = tf.minimum(tf.shape(loss_n)[0] / 2, 500)
+        #     loss_n, top_k_indices = tf.nn.top_k(loss_n, k=top_k, sorted=False)
+        #     loss_box_n = tf.gather(loss_box_n, top_k_indices)
+        #     cross_entropy_n = tf.gather(cross_entropy_n, top_k_indices)
 
         loss_box = tf.reduce_mean(loss_box_n)
         cross_entropy = tf.reduce_mean(cross_entropy_n)
