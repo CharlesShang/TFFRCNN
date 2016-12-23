@@ -398,26 +398,25 @@ class Network(object):
         # ignore_label(-1)
         fg_keep = tf.equal(rpn_label, 1)
         rpn_keep = tf.where(tf.not_equal(rpn_label, -1))
-        rpn_cls_score = tf.gather(rpn_cls_score, rpn_keep) # shape (N, 2)
-        rpn_label = tf.gather(rpn_label, rpn_keep)
+        rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_keep), [-1, 2]) # shape (N, 2)
+        rpn_label = tf.reshape(tf.gather(rpn_label, rpn_keep), [-1])
         rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label)
+        rpn_cross_entropy = tf.reduce_mean(rpn_cross_entropy_n)
 
         # box loss
         rpn_bbox_pred = self.get_output('rpn_bbox_pred') # shape (1, H, W, Ax4)
         rpn_bbox_targets = self.get_output('rpn-data')[1]
         rpn_bbox_inside_weights = self.get_output('rpn-data')[2]
         rpn_bbox_outside_weights = self.get_output('rpn-data')[3]
-        rpn_bbox_pred = tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep) # shape (N, 4)
-        rpn_bbox_targets = tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep)
-        rpn_bbox_inside_weights = tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep)
-        rpn_bbox_outside_weights = tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep)
+        rpn_bbox_pred = tf.reshape(tf.gather(tf.reshape(rpn_bbox_pred, [-1, 4]), rpn_keep), [-1, 4]) # shape (N, 4)
+        rpn_bbox_targets = tf.reshape(tf.gather(tf.reshape(rpn_bbox_targets, [-1, 4]), rpn_keep), [-1, 4])
+        rpn_bbox_inside_weights = tf.reshape(tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep), [-1, 4])
+        rpn_bbox_outside_weights = tf.reshape(tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep), [-1, 4])
 
         rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
             rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
 
-        rpn_loss_n = tf.reshape(rpn_cross_entropy_n + rpn_loss_box_n * 5, [-1])
-        # rpn_loss_n = tf.reshape(rpn_cross_entropy_n, [-1])
-
+        # rpn_loss_n = tf.reshape(rpn_cross_entropy_n + rpn_loss_box_n * 5, [-1])
 
         if ohem:
             # k = tf.minimum(tf.shape(rpn_cross_entropy_n)[0] / 2, 300)
@@ -429,17 +428,15 @@ class Network(object):
             # strategy: keeps all the positive samples
             pos_inds = tf.where(tf.equal(rpn_label, 1))
             neg_inds = tf.where(tf.equal(rpn_label, 0))
-            rpn_loss_n_pos = tf.gather(rpn_loss_n, pos_inds)
-            rpn_loss_n_neg = tf.gather(rpn_loss_n, neg_inds)
-            top_k = tf.minimum(tf.shape(rpn_loss_n_neg)[0] / 2, 300)
-            rpn_loss_n_neg, top_k_indices = tf.nn.top_k(rpn_loss_n_neg, k=top_k, sorted=False)
-            rpn_loss_box_n = tf.concat(0, (rpn_loss_n_pos, rpn_loss_n_neg))
+            rpn_cross_entropy_n_pos = tf.reshape(tf.gather(rpn_cross_entropy_n, pos_inds), [-1])
+            rpn_cross_entropy_n_neg = tf.reshape(tf.gather(rpn_cross_entropy_n, neg_inds), [-1])
+            top_k = tf.cast(tf.minimum(tf.shape(rpn_cross_entropy_n_neg)[0], 300), tf.int32)
+            rpn_cross_entropy_n_neg, _ = tf.nn.top_k(rpn_cross_entropy_n_neg, k=top_k)
+            rpn_cross_entropy = tf.reduce_mean(rpn_cross_entropy_n_neg) + tf.reduce_mean(rpn_cross_entropy_n_pos)
+            # rpn_cross_entropy_n = tf.concat(0, (rpn_cross_entropy_n_pos, rpn_cross_entropy_n_neg))
 
-        rpn_loss_box = 100 * tf.reduce_mean(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1)
-        # rpn_loss_box = 5 * tf.reduce_sum(rpn_loss_box_n)
-        rpn_cross_entropy = tf.reduce_mean(rpn_cross_entropy_n)
-
-        rpn_loss = rpn_cross_entropy + rpn_loss_box
+        rpn_loss_box = 100 * tf.reduce_mean(rpn_loss_box_n)
+        # rpn_loss_box = 10 * tf.reduce_sum(rpn_loss_box_n)
 
         ############# R-CNN
         # classification loss
