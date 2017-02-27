@@ -145,6 +145,43 @@ class Network(object):
                 return conv
 
     @layer
+    def upconv(self, input, shape, c_o, ksize=4, stride = 2, name = 'upconv', biased=False, relu=True, padding=DEFAULT_PADDING,
+             trainable=True):
+        """ up-conv"""
+        self.validate_padding(padding)
+
+        c_in = input.get_shape()[3].value
+        in_shape = tf.shape(input)
+        if shape is None:
+            h = ((in_shape[1] - 1) * stride) + 1
+            w = ((in_shape[2] - 1) * stride) + 1
+            new_shape = [in_shape[0], h, w, c_o]
+        else:
+            new_shape = [in_shape[0], shape[1], shape[2], c_o]
+        output_shape = tf.pack(new_shape)
+
+        filter_shape = [ksize, ksize, c_o, c_in]
+
+        with tf.variable_scope(name) as scope:
+            init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
+            filters = self.make_var('weights', filter_shape, init_weights, trainable, \
+                                   regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
+            deconv = tf.nn.conv2d_transpose(input, filters, output_shape,
+                                            strides=[1, stride, stride, 1], padding=DEFAULT_PADDING, name=scope.name)
+
+            if biased:
+                init_biases = tf.constant_initializer(0.0)
+                biases = self.make_var('biases', [c_o], init_biases, trainable)
+                if relu:
+                    bias = tf.nn.bias_add(deconv, biases)
+                    return tf.nn.relu(bias, name=scope.name)
+                return tf.nn.bias_add(deconv, biases, name=scope.name)
+            else:
+                if relu:
+                    return tf.nn.relu(deconv, name=scope.name)
+                return deconv
+
+    @layer
     def relu(self, input, name):
         return tf.nn.relu(input, name=name)
 
@@ -357,16 +394,166 @@ class Network(object):
     @layer
     def add(self,input,name):
         """contribution by miraclebiu"""
-        return tf.add(input[0],input[1])
+        return tf.add(input[0],input[1], name=name)
 
     @layer
-    def batch_normalization(self,input,name,relu=True,is_training=False):
+    def batch_normalization(self,input,name,relu=True, is_training=False):
         """contribution by miraclebiu"""
         if relu:
             temp_layer=tf.contrib.layers.batch_norm(input,scale=True,center=True,is_training=is_training,scope=name)
             return tf.nn.relu(temp_layer)
         else:
             return tf.contrib.layers.batch_norm(input,scale=True,center=True,is_training=is_training,scope=name)
+
+    @layer
+    def negation(self, input, name):
+        """ simply multiplies -1 to the tensor"""
+        return tf.mul(input, -1.0, name=name)
+
+    @layer
+    def bn_scale_combo(self, input, c_in, name, name_scope = '', relu=True):
+        """ PVA net BN -> Scale -> Relu"""
+        with tf.name_scope(name_scope):
+            bn = self.batch_normalization(input, name='bn', relu=False, is_training=False)
+            with tf.name_scope('bn_scale'):
+                alpha = tf.get_variable('alpha', shape=[c_in, ], dtype=tf.float32,
+                                    initializer=tf.constant_initializer(1.0), trainable=True,
+                                    regularizer=self.l2_regularizer(0.00004))
+                beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
+                                   initializer=tf.constant_initializer(0.0), trainable=True,
+                                   regularizer=self.l2_regularizer(0.00004))
+                bn = bn * alpha + beta
+            if relu:
+                bn = tf.nn.relu(bn)
+            return bn
+
+    @layer
+    def pva_negation_block(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True, padding=DEFAULT_PADDING, trainable=True,
+                           scale = True, negation = True):
+        """ for PVA net, Conv -> BN -> Neg -> Concat -> Scale -> Relu"""
+        with tf.name_scope(name):
+            conv = self.conv(input, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name='conv', padding=padding, trainable=trainable)
+            conv = self.batch_normalization(conv, 'bn', relu=False, is_training=False)
+            c_in = c_o
+            if negation:
+                conv_neg = self.negation(conv, name='neg')
+                conv = tf.concat(3, [conv, conv_neg], name='concat')
+                c_in += c_in
+            if scale:
+                # y = \alpha * x + \beta
+                with tf.name_scope('scale'):
+                    alpha = tf.get_variable('alpha', shape=[c_in,], dtype=tf.float32,
+                                            initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
+                    beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
+                                            initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
+                    conv = conv * alpha + beta
+            return tf.nn.relu(conv)
+
+    @layer
+    def pva_negation_block_v2(self, input, k_h, k_w, c_o, s_h, s_w, c_in, name, biased=True, padding=DEFAULT_PADDING, trainable=True,
+                           scale = True, negation = True):
+        """ for PVA net, BN -> [Neg -> Concat ->] Scale -> Relu -> Conv"""
+        with tf.name_scope(name):
+            bn = self.batch_normalization(input, 'bn', relu=False, is_training=False)
+            if negation:
+                bn_neg = self.negation(bn, name='neg')
+                bn = tf.concat(3, [bn, bn_neg], name='concat')
+                c_in += c_in
+            if scale:
+                # y = \alpha * x + \beta
+                with tf.name_scope('scale'):
+                    alpha = tf.get_variable('alpha', shape=[c_in,], dtype=tf.float32,
+                                            initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
+                    beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
+                                            initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
+                    bn = bn * alpha + beta
+            bn = tf.nn.relu(bn)
+            if name == 'conv3_1/1':
+                self.layers['conv3_1/1/relu'] = bn
+            conv = self.conv(bn, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name='conv', padding=padding,
+                         trainable=trainable)
+            return conv
+    @layer
+    def pva_inception_res_stack(self, input, c_in, name, block_start = False, type = 'a', name_scope='incept'):
+
+        if type == 'a':
+            (c_0, c_1, c_2, c_pool, c_out) = (64, 64, 24, 128, 256)
+        else:
+            (c_0, c_1, c_2, c_pool, c_out) = (64, 96, 32, 128, 384)
+        if block_start:
+            stride = 2
+        else:
+            stride = 1
+        with tf.name_scope(name=name_scope):
+            bn = self.batch_normalization(input, 'bn', relu=False, is_training=False)
+            bn_scale = self.scale(bn, c_in, name='bn_scale')
+            ## 1 x 1
+
+            conv = self.conv(bn_scale, 1, 1, c_0, stride, stride, name='0/conv', biased = False, relu=False)
+            conv_0 = self.bn_scale_combo(conv, c_in=c_0, name = '', name_scope='0', relu=True)
+
+            ## 3 x 3
+            bn_relu = tf.nn.relu(bn_scale, name='relu')
+            conv = self.conv(bn_relu, 1, 1, c_1, stride, stride, name='1_reduce/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo(conv, c_in=c_1, name = '', name_scope = '1_reduce', relu=True)
+            conv = self.conv(conv, 1, 1, c_1 * 2, 1, 1, name='1_0/conv', biased = False, relu=False)
+            conv_1 = self.bn_scale_combo(conv, c_in=c_1 * 2, name = '', name_scope='1_0', relu=True)
+
+            ## 5 x 5
+            conv = self.conv(bn_scale, 1, 1, c_2, stride, stride, name='2_reduce/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo(conv, c_in=c_2, name = '', name_scope='2_reduce', relu=True)
+            conv = self.conv(conv, 1, 1, c_2 * 2, 1, 1, name='2_0/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo(conv, c_in=c_2 * 2, name = '', name_scope='2_0', relu=True)
+            conv = self.conv(conv, 1, 1, c_2 * 2, 1, 1, name='2_1/conv', biased = False, relu=False)
+            conv_2 = self.bn_scale_combo(conv, c_in=c_2 * 2, name = '', name_scope='2_1', relu=True)
+
+            ## pool
+            if block_start:
+                pool = self.max_pool(bn_scale, 3, 3, 2, 2, padding='VALID', name='pool')
+                pool = self.conv(pool, 1, 1, c_pool, 1, 1, name='poolproj/conv', biased = False, relu=False)
+                pool = self.bn_scale_combo(pool, c_in=c_pool, name = '', name_scope='poolproj', relu=True)
+
+        if block_start:
+            concat = tf.concat(3, [conv_0, conv_1, conv_2, pool], name='concat')
+        else:
+            concat = tf.concat(3, [conv_0, conv_1, conv_2], name='concat')
+
+        conv = self.conv(concat, 1, 1, c_out, 1, 1, name='out/conv', relu=False)
+        conv = self.add([conv, input], name=name)
+        return  conv
+
+
+
+
+        return
+    @layer
+    def pva_inception_res_block(self, input, name, name_prefix = 'conv4_', type = 'a'):
+        """build inception block"""
+        node = input
+        if type == 'a':
+            c_ins = (128, 256, 256, 256, 256, )
+        else:
+            c_ins = (256, 384, 384, 384, 384, )
+        for i in range(1, 5):
+            node = self.pva_inception_res_stack(node, c_in = c_ins[i-1], name = '', block_start=(i==1), type='a',
+                                                name_scope=name_prefix + str(i) + '/incept')
+        return node
+
+    @layer
+    def scale(self, input, c_in, name):
+        with tf.name_scope(name):
+            alpha = tf.get_variable('alpha', shape=[c_in, ], dtype=tf.float32,
+                                    initializer=tf.constant_initializer(1.0), trainable=True,
+                                    regularizer=self.l2_regularizer(0.00004))
+            beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
+                                   initializer=tf.constant_initializer(0.0), trainable=True,
+                                   regularizer=self.l2_regularizer(0.00004))
+            return input * alpha + beta
+
+
+
+
+
 
     @layer
     def dropout(self, input, keep_prob, name):

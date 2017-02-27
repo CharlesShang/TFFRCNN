@@ -16,6 +16,8 @@ from .Resnet50_test import Resnet50_test
 from .Resnet50_train import Resnet50_train
 from .Resnet101_test import Resnet101_test
 from .Resnet101_train import Resnet101_train
+from .PVAnet_train import PVAnet_train
+from .PVAnet_test import PVAnet_test
 
 
 def get_network(name):
@@ -41,6 +43,13 @@ def get_network(name):
             return Resnet101_test()
         elif name.split('_')[1] == 'train':
             return Resnet101_train()
+        else:
+            raise KeyError('Unknown dataset: {}'.format(name))
+    elif name.split('_')[0] == 'PVAnet':
+        if name.split('_')[1] == 'test':
+           return PVAnet_test()
+        elif name.split('_')[1] == 'train':
+           return PVAnet_train()
         else:
             raise KeyError('Unknown dataset: {}'.format(name))
     else:
