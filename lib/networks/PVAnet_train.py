@@ -134,9 +134,9 @@ class PVAnet_train(Network):
 
         (self.feed('convf', 'roi-data')
          .roi_pool(7, 7, 1.0 / 16, name='roi_pooling')
-         .fc(500, name='fc6')
+         .fc(4096, name='fc6')
          .dropout(0.5, name='drop6')
-         .fc(500, name='fc7')
+         .fc(4096, name='fc7')
          .dropout(0.5, name='drop7')
          .fc(n_classes, relu=False, name='cls_score')
          .softmax(name='cls_prob'))
