@@ -426,17 +426,22 @@ class Network(object):
             # rpn_loss_box_n = tf.gather(rpn_loss_box_n, top_k_indices)
 
             # strategy: keeps all the positive samples
-            pos_inds = tf.where(tf.equal(rpn_label, 1))
-            neg_inds = tf.where(tf.equal(rpn_label, 0))
+            fg_ = tf.equal(rpn_label, 1)
+            bg_ = tf.equal(rpn_label, 0)
+            pos_inds = tf.where(fg_)
+            neg_inds = tf.where(bg_)
             rpn_cross_entropy_n_pos = tf.reshape(tf.gather(rpn_cross_entropy_n, pos_inds), [-1])
             rpn_cross_entropy_n_neg = tf.reshape(tf.gather(rpn_cross_entropy_n, neg_inds), [-1])
             top_k = tf.cast(tf.minimum(tf.shape(rpn_cross_entropy_n_neg)[0], 300), tf.int32)
             rpn_cross_entropy_n_neg, _ = tf.nn.top_k(rpn_cross_entropy_n_neg, k=top_k)
-            rpn_cross_entropy = tf.reduce_mean(rpn_cross_entropy_n_neg) + tf.reduce_mean(rpn_cross_entropy_n_pos)
+            rpn_cross_entropy = tf.reduce_sum(rpn_cross_entropy_n_neg) / (tf.reduce_sum(tf.cast(fg_, tf.float32)) + 1.0) \
+                                + tf.reduce_sum(rpn_cross_entropy_n_pos) / (tf.reduce_sum(tf.cast(bg_, tf.float32)) + 1.0)
+
+            rpn_loss_box_n = tf.reshape(tf.gather(rpn_loss_box_n, pos_inds), [-1])
             # rpn_cross_entropy_n = tf.concat(0, (rpn_cross_entropy_n_pos, rpn_cross_entropy_n_neg))
 
-        rpn_loss_box = 100 * tf.reduce_mean(rpn_loss_box_n)
-        # rpn_loss_box = 10 * tf.reduce_sum(rpn_loss_box_n)
+        # rpn_loss_box = 1 * tf.reduce_mean(rpn_loss_box_n)
+        rpn_loss_box = tf.reduce_sum(rpn_loss_box_n) / (tf.reduce_sum(tf.cast(fg_keep, tf.float32)) + 1.0)
 
         ############# R-CNN
         # classification loss

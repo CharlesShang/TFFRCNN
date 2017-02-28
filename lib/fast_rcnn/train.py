@@ -132,7 +132,7 @@ class SolverWrapper(object):
             opt = tf.train.MomentumOptimizer(lr, momentum)
 
         global_step = tf.Variable(0, trainable=False)
-        with_clip = False
+        with_clip = True
         if with_clip:
             tvars = tf.trainable_variables()
             grads, norm = tf.clip_by_global_norm(tf.gradients(loss, tvars), 10.0)
