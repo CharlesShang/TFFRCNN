@@ -145,12 +145,12 @@ class Network(object):
                 conv = convolve(input, kernel)
                 if relu:
                     bias = tf.nn.bias_add(conv, biases)
-                    return tf.nn.relu(bias, name=scope.name)
-                return tf.nn.bias_add(conv, biases, name=scope.name)
+                    return tf.nn.relu(bias)
+                return tf.nn.bias_add(conv, biases)
             else:
                 conv = convolve(input, kernel)
                 if relu:
-                    return tf.nn.relu(conv, name=scope.name)
+                    return tf.nn.relu(conv)
                 return conv
 
     @layer
@@ -187,11 +187,11 @@ class Network(object):
                 biases = self.make_var('biases', [c_o], init_biases, trainable)
                 if relu:
                     bias = tf.nn.bias_add(deconv, biases)
-                    return tf.nn.relu(bias, name=scope.name)
-                return tf.nn.bias_add(deconv, biases, name=scope.name)
+                    return tf.nn.relu(bias)
+                return tf.nn.bias_add(deconv, biases)
             else:
                 if relu:
-                    return tf.nn.relu(deconv, name=scope.name)
+                    return tf.nn.relu(deconv)
                 return deconv
 
     @layer
@@ -426,63 +426,64 @@ class Network(object):
     @layer
     def bn_scale_combo(self, input, c_in, name, relu=True):
         """ PVA net BN -> Scale -> Relu"""
-        with tf.name_scope(name) as scope:
-            bn = self.batch_normalization._original(self, input, name=scope+'bn', relu=False, is_training=False)
-            alpha = tf.get_variable(scope+'bn_scale/alpha', shape=[c_in, ], dtype=tf.float32,
+        with tf.variable_scope(name) as scope:
+            bn = self.batch_normalization._original(self, input, name='bn', relu=False, is_training=False)
+            alpha = tf.get_variable('bn_scale/alpha', shape=[c_in, ], dtype=tf.float32,
                                 initializer=tf.constant_initializer(1.0), trainable=True,
                                 regularizer=self.l2_regularizer(0.00004))
-            beta = tf.get_variable(scope+'bn_scale/beta', shape=[c_in, ], dtype=tf.float32,
+            beta = tf.get_variable('bn_scale/beta', shape=[c_in, ], dtype=tf.float32,
                                initializer=tf.constant_initializer(0.0), trainable=True,
                                regularizer=self.l2_regularizer(0.00004))
             bn = bn * alpha + beta
             if relu:
-                bn = tf.nn.relu(bn, name=scope+'relu')
+                bn = tf.nn.relu(bn, name='relu')
             return bn
 
     @layer
     def pva_negation_block(self, input, k_h, k_w, c_o, s_h, s_w, name, biased=True, padding=DEFAULT_PADDING, trainable=True,
                            scale = True, negation = True):
         """ for PVA net, Conv -> BN -> Neg -> Concat -> Scale -> Relu"""
-        with tf.name_scope(name) as scope:
-            conv = self.conv._original(self, input, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name=scope + 'conv', padding=padding, trainable=trainable)
-            conv = self.batch_normalization._original(self, conv, name=scope+'bn', relu=False, is_training=False)
+        with tf.variable_scope(name) as scope:
+            conv = self.conv._original(self, input, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name='conv', padding=padding, trainable=trainable)
+            conv = self.batch_normalization._original(self, conv, name='bn', relu=False, is_training=False)
             c_in = c_o
             if negation:
-                conv_neg = self.negation._original(self, conv, name=scope+'neg')
-                conv = tf.concat(3, [conv, conv_neg], name=scope+'concat')
+                conv_neg = self.negation._original(self, conv, name='neg')
+                conv = tf.concat(3, [conv, conv_neg], name='concat')
                 c_in += c_in
             if scale:
                 # y = \alpha * x + \beta
-                alpha = tf.get_variable(scope + 'scale/alpha', shape=[c_in,], dtype=tf.float32,
+                alpha = tf.get_variable('scale/alpha', shape=[c_in,], dtype=tf.float32,
                                         initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
-                beta = tf.get_variable(scope + 'scale/beta', shape=[c_in, ], dtype=tf.float32,
+                beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
                                         initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
                 conv = conv * alpha + beta
-            return tf.nn.relu(conv, name=scope + 'relu')
+            return tf.nn.relu(conv, name='relu')
 
     @layer
     def pva_negation_block_v2(self, input, k_h, k_w, c_o, s_h, s_w, c_in, name, biased=True, padding=DEFAULT_PADDING, trainable=True,
                            scale = True, negation = True):
         """ for PVA net, BN -> [Neg -> Concat ->] Scale -> Relu -> Conv"""
-        with tf.name_scope(name) as scope:
-            bn = self.batch_normalization._original(self, input, name=scope+'bn', relu=False, is_training=False)
+        with tf.variable_scope(name) as scope:
+            bn = self.batch_normalization._original(self, input, name='bn', relu=False, is_training=False)
             if negation:
-                bn_neg = self.negation._original(self, bn, name=scope+'neg')
-                bn = tf.concat(3, [bn, bn_neg], name=scope+'concat')
+                bn_neg = self.negation._original(self, bn, name='neg')
+                bn = tf.concat(3, [bn, bn_neg], name='concat')
                 c_in += c_in
             if scale:
                 # y = \alpha * x + \beta
-                alpha = tf.get_variable(scope+'scale/alpha', shape=[c_in,], dtype=tf.float32,
+                alpha = tf.get_variable('scale/alpha', shape=[c_in,], dtype=tf.float32,
                                         initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
-                beta = tf.get_variable(scope+'scale/beta', shape=[c_in, ], dtype=tf.float32,
+                beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
                                         initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
                 bn = bn * alpha + beta
-            bn = tf.nn.relu(bn)
-            if name == 'conv3_1/1':
-                self.layers['conv3_1/1/relu'] = bn
-            conv = self.conv._original(self, bn, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name=scope+'conv', padding=padding,
+            bn = tf.nn.relu(bn, name='relu')
+            if name == 'conv3_1/1': self.layers['conv3_1/1/relu'] = bn
+
+            conv = self.conv._original(self, bn, k_h, k_w, c_o, s_h, s_w, biased=biased, relu=False, name='conv', padding=padding,
                          trainable=trainable)
             return conv
+
     @layer
     def pva_inception_res_stack(self, input, c_in, name, block_start = False, type = 'a'):
 
@@ -496,46 +497,50 @@ class Network(object):
             stride = 2
         else:
             stride = 1
-        with tf.name_scope(name=name+'/incep') as scope:
-            bn = self.batch_normalization._original(self, input, name=scope+'bn', relu=False, is_training=False)
-            bn_scale = self.scale._original(self, bn, c_in, name=scope+'bn_scale')
+        with tf.variable_scope(name+'/incep') as scope:
+            bn = self.batch_normalization._original(self, input, name='bn', relu=False, is_training=False)
+            bn_scale = self.scale._original(self, bn, c_in, name='bn_scale')
             ## 1 x 1
 
-            conv = self.conv._original(self, bn_scale, 1, 1, c_0, stride, stride, name=scope+'0/conv', biased = False, relu=False)
-            conv_0 = self.bn_scale_combo._original(self, conv, c_in=c_0, name =scope+'0', relu=True)
+            conv = self.conv._original(self, bn_scale, 1, 1, c_0, stride, stride, name='0/conv', biased = False, relu=False)
+            conv_0 = self.bn_scale_combo._original(self, conv, c_in=c_0, name ='0', relu=True)
 
             ## 3 x 3
             bn_relu = tf.nn.relu(bn_scale, name='relu')
-            conv = self.conv._original(self, bn_relu, 1, 1, c_1, stride, stride, name=scope+'1_reduce/conv', biased = False, relu=False)
-            conv = self.bn_scale_combo._original(self, conv, c_in=c_1, name=scope+'1_reduce', relu=True)
-            conv = self.conv._original(self, conv, 1, 1, c_1 * 2, 1, 1, name=scope+'1_0/conv', biased = False, relu=False)
-            conv_1 = self.bn_scale_combo._original(self, conv, c_in=c_1 * 2, name=scope+'1_0', relu=True)
+            if name == 'conv4_1': tmp_c = c_1; c_1 = 48
+            conv = self.conv._original(self, bn_relu, 1, 1, c_1, stride, stride, name='1_reduce/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo._original(self, conv, c_in=c_1, name='1_reduce', relu=True)
+            if name == 'conv4_1': c_1 = tmp_c
+            conv = self.conv._original(self, conv, 3, 3, c_1 * 2, 1, 1, name='1_0/conv', biased = False, relu=False)
+            conv_1 = self.bn_scale_combo._original(self, conv, c_in=c_1 * 2, name='1_0', relu=True)
 
             ## 5 x 5
-            conv = self.conv._original(self, bn_scale, 1, 1, c_2, stride, stride, name=scope+'2_reduce/conv', biased = False, relu=False)
-            conv = self.bn_scale_combo._original(self, conv, c_in=c_2, name=scope+'2_reduce', relu=True)
-            conv = self.conv._original(self, conv, 1, 1, c_2 * 2, 1, 1, name=scope+'2_0/conv', biased = False, relu=False)
-            conv = self.bn_scale_combo._original(self, conv, c_in=c_2 * 2, name=scope+'2_0', relu=True)
-            conv = self.conv._original(self, conv, 1, 1, c_2 * 2, 1, 1, name=scope+'2_1/conv', biased = False, relu=False)
-            conv_2 = self.bn_scale_combo._original(self, conv, c_in=c_2 * 2, name=scope+'2_1', relu=True)
+            conv = self.conv._original(self, bn_scale, 1, 1, c_2, stride, stride, name='2_reduce/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo._original(self, conv, c_in=c_2, name='2_reduce', relu=True)
+            conv = self.conv._original(self, conv, 3, 3, c_2 * 2, 1, 1, name='2_0/conv', biased = False, relu=False)
+            conv = self.bn_scale_combo._original(self, conv, c_in=c_2 * 2, name='2_0', relu=True)
+            conv = self.conv._original(self, conv, 3, 3, c_2 * 2, 1, 1, name='2_1/conv', biased = False, relu=False)
+            conv_2 = self.bn_scale_combo._original(self, conv, c_in=c_2 * 2, name='2_1', relu=True)
 
             ## pool
             if block_start:
-                pool = self.max_pool._original(self, bn_scale, 3, 3, 2, 2, padding=DEFAULT_PADDING, name=scope+'pool')
-                pool = self.conv._original(self, pool, 1, 1, c_pool, 1, 1, name=scope+'poolproj/conv', biased = False, relu=False)
-                pool = self.bn_scale_combo._original(self, pool, c_in=c_pool, name=scope+'poolproj', relu=True)
+                pool = self.max_pool._original(self, bn_scale, 3, 3, 2, 2, padding=DEFAULT_PADDING, name='pool')
+                pool = self.conv._original(self, pool, 1, 1, c_pool, 1, 1, name='poolproj/conv', biased = False, relu=False)
+                pool = self.bn_scale_combo._original(self, pool, c_in=c_pool, name='poolproj', relu=True)
 
-        with tf.name_scope(name=name) as scope:
+        with tf.variable_scope(name) as scope:
             if block_start:
-                concat = tf.concat(3, [conv_0, conv_1, conv_2, pool], name=scope+'concat')
-                proj = self.conv._original(self, input, 1, 1, c_out, 2, 2, name=scope+'proj', biased=False,
+                concat = tf.concat(3, [conv_0, conv_1, conv_2, pool], name='concat')
+                proj = self.conv._original(self, input, 1, 1, c_out, 2, 2, name='proj', biased=True,
                                            relu=False)
             else:
-                concat = tf.concat(3, [conv_0, conv_1, conv_2], name=scope+'concat')
+                concat = tf.concat(3, [conv_0, conv_1, conv_2], name='concat')
                 proj = input
 
-            conv = self.conv._original(self, concat, 1, 1, c_out, 1, 1, name=scope+'out/conv', relu=False)
-            conv = self.add._original(self, [conv, proj], name=scope)
+            conv = self.conv._original(self, concat, 1, 1, c_out, 1, 1, name='out/conv', relu=False)
+            if name == 'conv5_4':
+                conv = self.bn_scale_combo._original(self, conv, c_in=c_out, name='out', relu=False)
+            conv = self.add._original(self, [conv, proj], name='sum')
         return  conv
 
 
@@ -557,11 +562,12 @@ class Network(object):
 
     @layer
     def scale(self, input, c_in, name):
-        with tf.name_scope(name) as scope:
-            alpha = tf.get_variable(scope + 'alpha', shape=[c_in, ], dtype=tf.float32,
+        with tf.variable_scope(name) as scope:
+
+            alpha = tf.get_variable('alpha', shape=[c_in, ], dtype=tf.float32,
                                     initializer=tf.constant_initializer(1.0), trainable=True,
                                     regularizer=self.l2_regularizer(0.00004))
-            beta = tf.get_variable(scope + 'beta', shape=[c_in, ], dtype=tf.float32,
+            beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
                                    initializer=tf.constant_initializer(0.0), trainable=True,
                                    regularizer=self.l2_regularizer(0.00004))
             return input * alpha + beta

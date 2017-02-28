@@ -8,6 +8,7 @@
 import tensorflow as tf
 from .network import Network
 from ..fast_rcnn.config import cfg
+import numpy as np
 
 
 class PVAnet_train(Network):
@@ -32,12 +33,12 @@ class PVAnet_train(Network):
         (self.feed('data')
          .pva_negation_block(7, 7, 16, 2, 2, name='conv1_1', negation=True)         # downsample
          .max_pool(3, 3, 2, 2, padding='VALID', name='pool1')                       # downsample
-         .pva_negation_block(1, 1, 24, 1, 1, name='conv2_1/1', negation=False)
-         .pva_negation_block(3, 3, 24, 1, 1, name='conv2_1/2', negation=True)
-         .conv(1, 1, 64, 1, 1, name='conv2_1/3', relu=False))
+         .conv(1, 1, 24, 1, 1, name='conv2_1/1/conv', biased=True, relu=False)
+         .pva_negation_block_v2(3, 3, 24, 1, 1, 24, name='conv2_1/2', negation=False)
+         .pva_negation_block_v2(1, 1, 64, 1, 1, 24, name='conv2_1/3', negation=True))
 
         (self.feed('pool1')
-         .conv(1,1, 64, 1, 1, name='conv2_1/proj', relu=False))
+         .conv(1,1, 64, 1, 1, name='conv2_1/proj', relu=True))
 
         (self.feed('conv2_1/3', 'conv2_1/proj')
          .add(name='conv2_1')
@@ -58,7 +59,7 @@ class PVAnet_train(Network):
          .pva_negation_block_v2(1, 1, 128, 1, 1, 48, name='conv3_1/3', negation=True))
 
         (self.feed('conv3_1/1/relu')
-         .conv(1, 1, 128, 2, 2, name='conv3_1/proj', relu=False))
+         .conv(1, 1, 128, 2, 2, name='conv3_1/proj', relu=True))
 
         (self.feed('conv3_1/3', 'conv3_1/proj')  # 128
          .add(name='conv3_1')
@@ -85,9 +86,11 @@ class PVAnet_train(Network):
         (self.feed('conv3_4')
          .pva_inception_res_block(name = 'conv4_4', name_prefix = 'conv4_', type='a') # downsample
          .pva_inception_res_block(name='conv5_4', name_prefix='conv5_', type='b')     # downsample
-         .bn_scale_combo(c_in=384, name='conv5_4/last', relu=True))
+         .batch_normalization(name='conv5_4/last_bn', relu=False)
+         .scale(c_in=384, name='conv5_4/last_bn_scale')
+         .relu(name='conv5_4/last_relu'))
 
-        (self.feed('conv5_4/last')
+        (self.feed('conv5_4/last_relu')
          .upconv(tf.shape(self.layers['downsample']),
                  384, 4, 2, name = 'upsample', biased= False, relu=False, trainable=True)) # upsample
 
@@ -140,3 +143,19 @@ class PVAnet_train(Network):
 
         (self.feed('drop7')
          .fc(n_classes * 4, relu=False, name='bbox_pred'))
+
+    def load(self, data_path, session, ignore_missing=False):
+        data_dict = np.load(data_path).item()
+        print (data_dict.keys())
+        for key in sorted(data_dict.keys()):
+            with tf.variable_scope(key, reuse=True):
+                for subkey in data_dict[key]:
+                    try:
+                        var = tf.get_variable(subkey)
+                        session.run(var.assign(data_dict[key][subkey]))
+                        print "assign pretrain model "+subkey+ " to "+key
+                    except ValueError:
+                        print "ignore "+key
+                        if not ignore_missing:
+
+                            raise
