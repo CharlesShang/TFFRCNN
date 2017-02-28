@@ -146,7 +146,7 @@ class PVAnet_train(Network):
 
     def load(self, data_path, session, ignore_missing=False):
         data_dict = np.load(data_path).item()
-        print (data_dict.keys())
+        # print (data_dict.keys())
         for key in sorted(data_dict.keys()):
             with tf.variable_scope(key, reuse=True):
                 for subkey in data_dict[key]:
