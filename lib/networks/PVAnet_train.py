@@ -39,7 +39,7 @@ class PVAnet_train(Network):
         (self.feed('pool1')
          .conv(1,1, 64, 1, 1, name='conv2_1/proj', relu=False))
 
-        (self.feed('conv2_1/3', 'pool1')
+        (self.feed('conv2_1/3', 'conv2_1/proj')
          .add(name='conv2_1')
          .pva_negation_block_v2(1, 1, 24, 1, 1, 64, name='conv2_2/1', negation = False)
          .pva_negation_block_v2(3, 3, 24, 1, 1, 24, name='conv2_2/2', negation = False)
@@ -80,13 +80,16 @@ class PVAnet_train(Network):
 
         (self.feed('conv3_4/3', 'conv3_3')  # 128
          .add(name='conv3_4')
-         .max_pool(3, 3, 2, 2, padding='VALID', name='downsample')) # downsample
+         .max_pool(3, 3, 2, 2, padding='SAME', name='downsample')) # downsample
 
         (self.feed('conv3_4')
          .pva_inception_res_block(name = 'conv4_4', name_prefix = 'conv4_', type='a') # downsample
          .pva_inception_res_block(name='conv5_4', name_prefix='conv5_', type='b')     # downsample
-         .bn_scale_combo(c_in=384, name='conv5_4/last_relu', name_scope='conv5_4/last/', relu=True)
-         .upconv(None, 384, 4, 2, name = 'upsample', biased= False, relu=False, trainable=True)) # upsample
+         .bn_scale_combo(c_in=384, name='conv5_4/last', relu=True))
+
+        (self.feed('conv5_4/last')
+         .upconv(tf.shape(self.layers['downsample']),
+                 384, 4, 2, name = 'upsample', biased= False, relu=False, trainable=True)) # upsample
 
         (self.feed('downsample', 'conv4_4', 'upsample')
          .concat(axis=3, name='concat'))
@@ -128,9 +131,9 @@ class PVAnet_train(Network):
 
         (self.feed('convf', 'roi-data')
          .roi_pool(7, 7, 1.0 / 16, name='roi_pooling')
-         .fc(2048, name='fc6')
+         .fc(500, name='fc6')
          .dropout(0.5, name='drop6')
-         .fc(2048, name='fc7')
+         .fc(500, name='fc7')
          .dropout(0.5, name='drop7')
          .fc(n_classes, relu=False, name='cls_score')
          .softmax(name='cls_prob'))
