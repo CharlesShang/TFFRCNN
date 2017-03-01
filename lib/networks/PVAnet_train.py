@@ -97,7 +97,6 @@ class PVAnet_train(Network):
         (self.feed('downsample', 'conv4_4', 'upsample')
          .concat(axis=3, name='concat'))
 
-
         # ========= RPN ============
         (self.feed('concat')
          .conv(1, 1, 128, 1, 1, name='convf_rpn', biased=True, relu=True)
@@ -134,14 +133,16 @@ class PVAnet_train(Network):
 
         (self.feed('convf', 'roi-data')
          .roi_pool(7, 7, 1.0 / 16, name='roi_pooling')
-         .fc(4096, name='fc6')
-         .dropout(0.5, name='drop6')
-         .fc(4096, name='fc7')
-         .dropout(0.5, name='drop7')
+         .fc(4096, name='fc6', relu=False)
+         .bn_scale_combo(c_in = 4096, name='fc6', relu=True)
+         .dropout(0.5, name='fc6/drop6')
+         .fc(4096, name='fc7', relu=False)
+         .bn_scale_combo(c_in=4096, name='fc7', relu=True)
+         .dropout(0.5, name='fc7/drop7')
          .fc(n_classes, relu=False, name='cls_score')
          .softmax(name='cls_prob'))
 
-        (self.feed('drop7')
+        (self.feed('fc7/drop7')
          .fc(n_classes * 4, relu=False, name='bbox_pred'))
 
     def load(self, data_path, session, ignore_missing=False):
@@ -151,9 +152,9 @@ class PVAnet_train(Network):
             with tf.variable_scope(key, reuse=True):
                 for subkey in data_dict[key]:
                     try:
+                        print "assign pretrain model " + subkey + " to " + key + '/' + subkey
                         var = tf.get_variable(subkey)
                         session.run(var.assign(data_dict[key][subkey]))
-                        print "assign pretrain model "+subkey+ " to "+key
                     except ValueError:
                         print "ignore "+key
                         if not ignore_missing:

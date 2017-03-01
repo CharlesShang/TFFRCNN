@@ -24,17 +24,18 @@ class PVAnet_test(Network):
         # anchor_scales = [8, 16, 32]
         anchor_scales = cfg.ANCHOR_SCALES
         _feat_stride = [16, ]
+
         (self.feed('data')
          .pva_negation_block(7, 7, 16, 2, 2, name='conv1_1', negation=True)  # downsample
          .max_pool(3, 3, 2, 2, padding='VALID', name='pool1')  # downsample
-         .pva_negation_block(1, 1, 24, 1, 1, name='conv2_1/1', negation=False)
-         .pva_negation_block(3, 3, 24, 1, 1, name='conv2_1/2', negation=True)
-         .conv(1, 1, 64, 1, 1, name='conv2_1/3', relu=False))
+         .conv(1, 1, 24, 1, 1, name='conv2_1/1/conv', biased=True, relu=False)
+         .pva_negation_block_v2(3, 3, 24, 1, 1, 24, name='conv2_1/2', negation=False)
+         .pva_negation_block_v2(1, 1, 64, 1, 1, 24, name='conv2_1/3', negation=True))
 
         (self.feed('pool1')
-         .conv(1, 1, 64, 1, 1, name='conv2_1/proj', relu=False))
+         .conv(1, 1, 64, 1, 1, name='conv2_1/proj', relu=True))
 
-        (self.feed('conv2_1/3', 'pool1')
+        (self.feed('conv2_1/3', 'conv2_1/proj')
          .add(name='conv2_1')
          .pva_negation_block_v2(1, 1, 24, 1, 1, 64, name='conv2_2/1', negation=False)
          .pva_negation_block_v2(3, 3, 24, 1, 1, 24, name='conv2_2/2', negation=False)
@@ -53,7 +54,7 @@ class PVAnet_test(Network):
          .pva_negation_block_v2(1, 1, 128, 1, 1, 48, name='conv3_1/3', negation=True))
 
         (self.feed('conv3_1/1/relu')
-         .conv(1, 1, 128, 2, 2, name='conv3_1/proj', relu=False))
+         .conv(1, 1, 128, 2, 2, name='conv3_1/proj', relu=True))
 
         (self.feed('conv3_1/3', 'conv3_1/proj')  # 128
          .add(name='conv3_1')
@@ -75,13 +76,18 @@ class PVAnet_test(Network):
 
         (self.feed('conv3_4/3', 'conv3_3')  # 128
          .add(name='conv3_4')
-         .max_pool(3, 3, 2, 2, padding='VALID', name='downsample'))  # downsample
+         .max_pool(3, 3, 2, 2, padding='SAME', name='downsample'))  # downsample
 
         (self.feed('conv3_4')
          .pva_inception_res_block(name='conv4_4', name_prefix='conv4_', type='a')  # downsample
          .pva_inception_res_block(name='conv5_4', name_prefix='conv5_', type='b')  # downsample
-         .bn_scale_combo(c_in=384, name='conv5_4/last_relu', name_scope='conv5_4/last/', relu=True)
-         .upconv(None, 384, 4, 2, name='upsample', biased=False, relu=False, trainable=True))  # upsample
+         .batch_normalization(name='conv5_4/last_bn', relu=False)
+         .scale(c_in=384, name='conv5_4/last_bn_scale')
+         .relu(name='conv5_4/last_relu'))
+
+        (self.feed('conv5_4/last_relu')
+         .upconv(tf.shape(self.layers['downsample']),
+                 384, 4, 2, name='upsample', biased=False, relu=False, trainable=True))  # upsample
 
         (self.feed('downsample', 'conv4_4', 'upsample')
          .concat(axis=3, name='concat'))
@@ -114,8 +120,10 @@ class PVAnet_test(Network):
 
         (self.feed('convf', 'rois')
          .roi_pool(7, 7, 1.0 / 16, name='roi_pooling')
-         .fc(2048, name='fc6')
-         .fc(2048, name='fc7')
+         .fc(4096, name='fc6', relu=False)
+         .bn_scale_combo(c_in = 4096, name='fc6', relu=True)
+         .fc(4096, name='fc7', relu=False)
+         .bn_scale_combo(c_in=4096, name='fc7', relu=True)
          .fc(n_classes, relu=False, name='cls_score')
          .softmax(name='cls_prob'))
 
