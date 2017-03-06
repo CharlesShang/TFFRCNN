@@ -22,6 +22,7 @@ limitations under the License.
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
+#include "tensorflow/core/framework/shape_inference.h"
 
 using namespace tensorflow;
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -34,7 +35,28 @@ REGISTER_OP("RoiPool")
     .Input("bottom_data: T")
     .Input("bottom_rois: T")
     .Output("top_data: T")
-    .Output("argmax: int32");
+    .Output("argmax: int32")
+    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+      ::tensorflow::shape_inference::ShapeHandle dims;
+      TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 4, &dims));
+      ::tensorflow::shape_inference::DimensionHandle channels;
+      channels = c->Dim(dims, 3);
+
+      ::tensorflow::shape_inference::ShapeHandle dims_rois;
+      TF_RETURN_IF_ERROR(c->WithRankAtLeast(c->input(1), 1, &dims_rois));
+      ::tensorflow::shape_inference::DimensionHandle num_rois;
+      num_rois = c->Dim(dims_rois, 0);
+
+      int64 pooled_height;
+      int64 pooled_width;
+      TF_RETURN_IF_ERROR(c->GetAttr("pooled_height", &pooled_height));
+      TF_RETURN_IF_ERROR(c->GetAttr("pooled_width", &pooled_width));
+      ::tensorflow::shape_inference::ShapeHandle output_shape =\
+         c->MakeShape({num_rois, pooled_height, pooled_width, channels});
+      c->set_output(0, output_shape);
+      c->set_output(1, output_shape);
+      return ::tensorflow::Status::OK();
+    });
 
 REGISTER_OP("RoiPoolGrad")
     .Attr("T: {float, double}")

@@ -46,7 +46,7 @@ class SolverWrapper(object):
 
         # For checkpoint
         self.saver = tf.train.Saver(max_to_keep=100)
-        self.writer = tf.train.SummaryWriter(logdir=logdir,
+        self.writer = tf.summary.FileWriter(logdir=logdir,
                                              graph=tf.get_default_graph(),
                                              flush_secs=5)
 
@@ -94,8 +94,12 @@ class SolverWrapper(object):
         """
         log_image_data = tf.placeholder(tf.uint8, [None, None, 3])
         log_image_name = tf.placeholder(tf.string)
-        log_image = tf.image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=1)
-        # log_image = tf.image_summary(log_image_name, log_image_data, max_images=50)
+        # import tensorflow.python.ops.gen_logging_ops as logging_ops
+        from tensorflow.python.ops import gen_logging_ops
+        from tensorflow.python.framework import ops as _ops
+        log_image = gen_logging_ops._image_summary(log_image_name, tf.expand_dims(log_image_data, 0), max_images=1)
+        _ops.add_to_collection(_ops.GraphKeys.SUMMARIES, log_image)
+        # log_image = tf.summary.image(log_image_name, tf.expand_dims(log_image_data, 0), max_outputs=1)
         return log_image, log_image_data, log_image_name
 
 
@@ -108,12 +112,12 @@ class SolverWrapper(object):
             self.net.build_loss(ohem=cfg.TRAIN.OHEM)
 
         # scalar summary
-        tf.scalar_summary('rpn_rgs_loss', rpn_loss_box)
-        tf.scalar_summary('rpn_cls_loss', rpn_cross_entropy)
-        tf.scalar_summary('cls_loss', cross_entropy)
-        tf.scalar_summary('rgs_loss', loss_box)
-        tf.scalar_summary('loss', loss)
-        summary_op = tf.merge_all_summaries()
+        tf.summary.scalar('rpn_rgs_loss', rpn_loss_box)
+        tf.summary.scalar('rpn_cls_loss', rpn_cross_entropy)
+        tf.summary.scalar('cls_loss', cross_entropy)
+        tf.summary.scalar('rgs_loss', loss_box)
+        tf.summary.scalar('loss', loss)
+        summary_op = tf.summary.merge_all()
 
         # image writer
         # NOTE: this image is independent to summary_op
@@ -141,7 +145,7 @@ class SolverWrapper(object):
             train_op = opt.minimize(loss, global_step=global_step)
 
         # intialize variables
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         restore_iter = 0
 
         # load vgg16

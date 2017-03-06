@@ -170,7 +170,7 @@ class Network(object):
             new_shape = [in_shape[0], h, w, c_o]
         else:
             new_shape = [in_shape[0], shape[1], shape[2], c_o]
-        output_shape = tf.pack(new_shape)
+        output_shape = tf.stack(new_shape)
 
         filter_shape = [ksize, ksize, c_o, c_in]
 
@@ -358,7 +358,7 @@ class Network(object):
 
     @layer
     def concat(self, inputs, axis, name):
-        return tf.concat(concat_dim=axis, values=inputs, name=name)
+        return tf.concat(axis=axis, values=inputs, name=name)
 
     @layer
     def fc(self, input, num_out, name, relu=True, trainable=True):
@@ -423,7 +423,7 @@ class Network(object):
     @layer
     def negation(self, input, name):
         """ simply multiplies -1 to the tensor"""
-        return tf.mul(input, -1.0, name=name)
+        return tf.multiply(input, -1.0, name=name)
 
     @layer
     def bn_scale_combo(self, input, c_in, name, relu=True):
@@ -451,7 +451,7 @@ class Network(object):
             c_in = c_o
             if negation:
                 conv_neg = self.negation._original(self, conv, name='neg')
-                conv = tf.concat(3, [conv, conv_neg], name='concat')
+                conv = tf.concat(axis=3, values=[conv, conv_neg], name='concat')
                 c_in += c_in
             if scale:
                 # y = \alpha * x + \beta
@@ -460,7 +460,7 @@ class Network(object):
                 beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
                                         initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00001))
                 # conv = conv * alpha + beta
-                conv = tf.add(tf.mul(conv, alpha), beta)
+                conv = tf.add(tf.multiply(conv, alpha), beta)
             return tf.nn.relu(conv, name='relu')
 
     @layer
@@ -471,14 +471,14 @@ class Network(object):
             bn = self.batch_normalization._original(self, input, name='bn', relu=False, is_training=False)
             if negation:
                 bn_neg = self.negation._original(self, bn, name='neg')
-                bn = tf.concat(3, [bn, bn_neg], name='concat')
+                bn = tf.concat(axis=3, values=[bn, bn_neg], name='concat')
                 c_in += c_in
                 # y = \alpha * x + \beta
                 alpha = tf.get_variable('scale/alpha', shape=[c_in,], dtype=tf.float32,
                                         initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
                 beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
                                         initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
-                bn = tf.add(tf.mul(bn, alpha), beta)
+                bn = tf.add(tf.multiply(bn, alpha), beta)
             bn = tf.nn.relu(bn, name='relu')
             if name == 'conv3_1/1': self.layers['conv3_1/1/relu'] = bn
 
@@ -532,11 +532,11 @@ class Network(object):
 
         with tf.variable_scope(name) as scope:
             if block_start:
-                concat = tf.concat(3, [conv_0, conv_1, conv_2, pool], name='concat')
+                concat = tf.concat(axis=3, values=[conv_0, conv_1, conv_2, pool], name='concat')
                 proj = self.conv._original(self, input, 1, 1, c_out, 2, 2, name='proj', biased=True,
                                            relu=False)
             else:
-                concat = tf.concat(3, [conv_0, conv_1, conv_2], name='concat')
+                concat = tf.concat(axis=3, values=[conv_0, conv_1, conv_2], name='concat')
                 proj = input
 
             conv = self.conv._original(self, concat, 1, 1, c_out, 1, 1, name='out/conv', relu=False)
@@ -568,7 +568,7 @@ class Network(object):
             beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
                                    initializer=tf.constant_initializer(0.0), trainable=True,
                                    regularizer=self.l2_regularizer(0.00001))
-            return tf.add(tf.mul(input, alpha), beta)
+            return tf.add(tf.multiply(input, alpha), beta)
 
 
 
@@ -585,7 +585,7 @@ class Network(object):
                 l2_weight = tf.convert_to_tensor(weight_decay,
                                        dtype=tensor.dtype.base_dtype,
                                        name='weight_decay')
-                return tf.mul(l2_weight, tf.nn.l2_loss(tensor), name='value')
+                return tf.multiply(l2_weight, tf.nn.l2_loss(tensor), name='value')
         return regularizer
 
     def smooth_l1_dist(self, deltas, sigma2=9.0, name='smooth_l1_dist'):
@@ -607,7 +607,7 @@ class Network(object):
         rpn_keep = tf.where(tf.not_equal(rpn_label, -1))
         rpn_cls_score = tf.reshape(tf.gather(rpn_cls_score, rpn_keep), [-1, 2]) # shape (N, 2)
         rpn_label = tf.reshape(tf.gather(rpn_label, rpn_keep), [-1])
-        rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(rpn_cls_score, rpn_label)
+        rpn_cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=rpn_cls_score, labels=rpn_label)
         rpn_cross_entropy = tf.reduce_mean(rpn_cross_entropy_n)
 
         # box loss
@@ -621,7 +621,7 @@ class Network(object):
         rpn_bbox_outside_weights = tf.reshape(tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep), [-1, 4])
 
         rpn_loss_box_n = tf.reduce_sum(self.smooth_l1_dist(
-            rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
+            rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), axis=[1])
 
         # rpn_loss_n = tf.reshape(rpn_cross_entropy_n + rpn_loss_box_n * 5, [-1])
 
@@ -654,7 +654,7 @@ class Network(object):
         # classification loss
         cls_score = self.get_output('cls_score') # (R, C+1)
         label = tf.reshape(self.get_output('roi-data')[1], [-1]) # (R)
-        cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(cls_score, label)
+        cross_entropy_n = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=cls_score, labels=label)
 
         # bounding box regression L1 loss
         bbox_pred = self.get_output('bbox_pred') # (R, (C+1)x4)
@@ -665,7 +665,7 @@ class Network(object):
 
         loss_box_n = tf.reduce_sum( \
             bbox_outside_weights * self.smooth_l1_dist(bbox_inside_weights * (bbox_pred - bbox_targets)), \
-            reduction_indices=[1])
+            axis=[1])
 
         loss_n = loss_box_n + cross_entropy_n
         loss_n = tf.reshape(loss_n, [-1])
