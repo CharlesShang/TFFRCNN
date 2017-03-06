@@ -87,14 +87,13 @@ class PVAnet_train(Network):
          .pva_inception_res_block(name = 'conv4_4', name_prefix = 'conv4_', type='a') # downsample
          .pva_inception_res_block(name='conv5_4', name_prefix='conv5_', type='b')     # downsample
          .batch_normalization(name='conv5_4/last_bn', relu=False)
-         .scale(c_in=384, name='conv5_4/last_bn_scale')
          .relu(name='conv5_4/last_relu'))
 
         (self.feed('conv5_4/last_relu')
          .upconv(tf.shape(self.layers['downsample']),
                  384, 4, 2, name = 'upsample', biased= False, relu=False, trainable=True)) # upsample
 
-        (self.feed('downsample', 'conv4_4', 'upsample')
+        (self.feed('downsample', 'conv4_4')
          .concat(axis=3, name='concat'))
 
         # ========= RPN ============
@@ -128,16 +127,16 @@ class PVAnet_train(Network):
         (self.feed('concat')
          .conv(1, 1, 384, 1, 1, name='convf_2', biased=True, relu=True))
 
-        (self.feed('convf_rpn', 'convf_2')
-         .concat(axis=3, name='convf'))
+        # (self.feed('convf_rpn', 'convf_2')
+        #  .concat(axis=3, name='convf'))
 
-        (self.feed('convf', 'roi-data')
-         .roi_pool(7, 7, 1.0 / 16, name='roi_pooling')
-         .fc(4096, name='fc6', relu=False)
-         .bn_scale_combo(c_in = 4096, name='fc6', relu=True)
+        (self.feed('convf_2', 'roi-data')
+         .roi_pool(5, 5, 1.0 / 16, name='roi_pooling')
+         .fc(1024, name='fc6', relu=False)
+         .bn_scale_combo(c_in = 1024, name='fc6', relu=True)
          .dropout(0.5, name='fc6/drop6')
-         .fc(4096, name='fc7', relu=False)
-         .bn_scale_combo(c_in=4096, name='fc7', relu=True)
+         .fc(1024, name='fc7', relu=False)
+         .bn_scale_combo(c_in=1024, name='fc7', relu=True)
          .dropout(0.5, name='fc7/drop7')
          .fc(n_classes, relu=False, name='cls_score')
          .softmax(name='cls_prob'))
@@ -148,15 +147,15 @@ class PVAnet_train(Network):
     def load(self, data_path, session, ignore_missing=False):
         data_dict = np.load(data_path).item()
         # print (data_dict.keys())
-        for key in sorted(data_dict.keys()):
+        for key in sorted(data_dict.keys(), reverse=True):
             with tf.variable_scope(key, reuse=True):
                 for subkey in data_dict[key]:
                     try:
-                        print "assign pretrain model " + subkey + " to " + key + '/' + subkey
                         var = tf.get_variable(subkey)
                         session.run(var.assign(data_dict[key][subkey]))
+                        print "assign pretrain model " + subkey + " to " + key + '/' + subkey
                     except ValueError:
-                        print "ignore "+key
+                        print "ignore " + key + '/' + subkey + ' shape:', data_dict[key][subkey].shape
                         if not ignore_missing:
 
                             raise
