@@ -136,7 +136,8 @@ class Network(object):
         convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
         with tf.variable_scope(name) as scope:
 
-            init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
+            # init_weights = tf.truncated_normal_initializer(0.0, stddev=0.001)
+            init_weights = tf.contrib.layers.variance_scaling_initializer(factor=0.01, mode='FAN_AVG', uniform=False)
             init_biases = tf.constant_initializer(0.0)
             kernel = self.make_var('weights', [k_h, k_w, c_i, c_o], init_weights, trainable, \
                                    regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
@@ -174,7 +175,8 @@ class Network(object):
         filter_shape = [ksize, ksize, c_o, c_in]
 
         with tf.variable_scope(name) as scope:
-            init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
+            # init_weights = tf.truncated_normal_initializer(0.0, stddev=0.01)
+            init_weights = tf.contrib.layers.variance_scaling_initializer(factor=0.01, mode='FAN_AVG', uniform=False)
             filters = self.make_var('weights', filter_shape, init_weights, trainable, \
                                    regularizer=self.l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
             deconv = tf.nn.conv2d_transpose(input, filters, output_shape,
@@ -428,13 +430,13 @@ class Network(object):
         """ PVA net BN -> Scale -> Relu"""
         with tf.variable_scope(name) as scope:
             bn = self.batch_normalization._original(self, input, name='bn', relu=False, is_training=False)
-            alpha = tf.get_variable('bn_scale/alpha', shape=[c_in, ], dtype=tf.float32,
-                                initializer=tf.constant_initializer(1.0), trainable=True,
-                                regularizer=self.l2_regularizer(0.00004))
-            beta = tf.get_variable('bn_scale/beta', shape=[c_in, ], dtype=tf.float32,
-                               initializer=tf.constant_initializer(0.0), trainable=True,
-                               regularizer=self.l2_regularizer(0.00004))
-            bn = bn * alpha + beta
+            # alpha = tf.get_variable('bn_scale/alpha', shape=[c_in, ], dtype=tf.float32,
+            #                     initializer=tf.constant_initializer(1.0), trainable=True,
+            #                     regularizer=self.l2_regularizer(0.00001))
+            # beta = tf.get_variable('bn_scale/beta', shape=[c_in, ], dtype=tf.float32,
+            #                    initializer=tf.constant_initializer(0.0), trainable=True,
+            #                    regularizer=self.l2_regularizer(0.00001))
+            # bn = tf.add(tf.mul(bn, alpha), beta)
             if relu:
                 bn = tf.nn.relu(bn, name='relu')
             return bn
@@ -454,10 +456,11 @@ class Network(object):
             if scale:
                 # y = \alpha * x + \beta
                 alpha = tf.get_variable('scale/alpha', shape=[c_in,], dtype=tf.float32,
-                                        initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
+                                        initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00001))
                 beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
-                                        initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
-                conv = conv * alpha + beta
+                                        initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00001))
+                # conv = conv * alpha + beta
+                conv = tf.add(tf.mul(conv, alpha), beta)
             return tf.nn.relu(conv, name='relu')
 
     @layer
@@ -470,13 +473,12 @@ class Network(object):
                 bn_neg = self.negation._original(self, bn, name='neg')
                 bn = tf.concat(3, [bn, bn_neg], name='concat')
                 c_in += c_in
-            if scale:
                 # y = \alpha * x + \beta
                 alpha = tf.get_variable('scale/alpha', shape=[c_in,], dtype=tf.float32,
                                         initializer=tf.constant_initializer(1.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
                 beta = tf.get_variable('scale/beta', shape=[c_in, ], dtype=tf.float32,
                                         initializer=tf.constant_initializer(0.0), trainable=True, regularizer=self.l2_regularizer(0.00004))
-                bn = bn * alpha + beta
+                bn = tf.add(tf.mul(bn, alpha), beta)
             bn = tf.nn.relu(bn, name='relu')
             if name == 'conv3_1/1': self.layers['conv3_1/1/relu'] = bn
 
@@ -543,10 +545,6 @@ class Network(object):
             conv = self.add._original(self, [conv, proj], name='sum')
         return  conv
 
-
-
-
-        return
     @layer
     def pva_inception_res_block(self, input, name, name_prefix = 'conv4_', type = 'a'):
         """build inception block"""
@@ -566,11 +564,11 @@ class Network(object):
 
             alpha = tf.get_variable('alpha', shape=[c_in, ], dtype=tf.float32,
                                     initializer=tf.constant_initializer(1.0), trainable=True,
-                                    regularizer=self.l2_regularizer(0.00004))
+                                    regularizer=self.l2_regularizer(0.00001))
             beta = tf.get_variable('beta', shape=[c_in, ], dtype=tf.float32,
                                    initializer=tf.constant_initializer(0.0), trainable=True,
-                                   regularizer=self.l2_regularizer(0.00004))
-            return input * alpha + beta
+                                   regularizer=self.l2_regularizer(0.00001))
+            return tf.add(tf.mul(input, alpha), beta)
 
 
 
@@ -622,7 +620,7 @@ class Network(object):
         rpn_bbox_inside_weights = tf.reshape(tf.gather(tf.reshape(rpn_bbox_inside_weights, [-1, 4]), rpn_keep), [-1, 4])
         rpn_bbox_outside_weights = tf.reshape(tf.gather(tf.reshape(rpn_bbox_outside_weights, [-1, 4]), rpn_keep), [-1, 4])
 
-        rpn_loss_box_n = tf.reduce_sum(rpn_bbox_outside_weights * self.smooth_l1_dist(
+        rpn_loss_box_n = tf.reduce_sum(self.smooth_l1_dist(
             rpn_bbox_inside_weights * (rpn_bbox_pred - rpn_bbox_targets)), reduction_indices=[1])
 
         # rpn_loss_n = tf.reshape(rpn_cross_entropy_n + rpn_loss_box_n * 5, [-1])
@@ -643,8 +641,8 @@ class Network(object):
             rpn_cross_entropy_n_neg = tf.reshape(tf.gather(rpn_cross_entropy_n, neg_inds), [-1])
             top_k = tf.cast(tf.minimum(tf.shape(rpn_cross_entropy_n_neg)[0], 300), tf.int32)
             rpn_cross_entropy_n_neg, _ = tf.nn.top_k(rpn_cross_entropy_n_neg, k=top_k)
-            rpn_cross_entropy = tf.reduce_sum(rpn_cross_entropy_n_neg) / (tf.reduce_sum(tf.cast(fg_, tf.float32)) + 1.0) \
-                                + tf.reduce_sum(rpn_cross_entropy_n_pos) / (tf.reduce_sum(tf.cast(bg_, tf.float32)) + 1.0)
+            rpn_cross_entropy = tf.reduce_sum(rpn_cross_entropy_n_neg) / (tf.reduce_sum(tf.cast(bg_, tf.float32)) + 1.0) \
+                                + tf.reduce_sum(rpn_cross_entropy_n_pos) / (tf.reduce_sum(tf.cast(fg_, tf.float32)) + 1.0)
 
             rpn_loss_box_n = tf.reshape(tf.gather(rpn_loss_box_n, pos_inds), [-1])
             # rpn_cross_entropy_n = tf.concat(0, (rpn_cross_entropy_n_pos, rpn_cross_entropy_n_neg))
