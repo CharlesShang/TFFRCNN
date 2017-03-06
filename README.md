@@ -71,6 +71,8 @@ The demo performs detection using a VGG16 network trained for detection on PASCA
 
 5. [Resnet50 - TFFRCNN (0.712 mAP on VOC07)](https://drive.google.com/file/d/0B_xFdh9onPagbXk1b0FIeDRJaU0/view?usp=sharing)
 
+6. [PVANet trained on ImageNet, converted from caffemodel](https://drive.google.com/open?id=0B_xFdh9onPagQnJBdWl3VGQxam8)
+
 ### Training on Pascal VOC 2007
 
 1. Download the training, validation, test data and VOCdevkit
