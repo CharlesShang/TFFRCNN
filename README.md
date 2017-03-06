@@ -9,8 +9,10 @@ For details about R-CNN please refer to the paper [Faster R-CNN: Towards Real-Ti
 - [x] Resnet networks support
 - [x] KITTI object detection dataset support
 - [x] **P**osition **S**ensitive **ROI Pooling** (psroi_pooling), not testing yet
-- [ ] Hard Example Mining
-- [ ] Data Augment
+- [x] Hard Example Mining
+- [x] Data Augment
+- [x] PVANet
+- [x] Tensorflow 1.0
 - [ ] R-FCN
 - [ ] Multi-layer Architecture (HyperNet)
 - [ ] more hacks...
